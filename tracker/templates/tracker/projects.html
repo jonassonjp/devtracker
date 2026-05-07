@@ -1,0 +1,14 @@
+{% extends "tracker/base.html" %}
+{% block title %}Projetos — DevTracker{% endblock %}
+{% block nav_proj %}active{% endblock %}
+{% block content %}
+<div class="page-header"><div class="page-title">Projetos</div><div class="page-sub">Todos os projetos monitorados</div></div>
+<div id="proj-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px"></div>
+{% endblock %}
+{% block scripts %}<script>
+const data={{project_data|safe}};
+function fmt(s){if(!s)return'0m';const h=Math.floor(s/3600),m=Math.floor((s%3600)/60);if(h>0)return h+'h '+(m>0?m+'m':'');return m+'m';}
+const grid=document.getElementById('proj-grid');
+if(!data.length){grid.innerHTML='<div style="color:var(--text3);font-size:14px;padding:20px">Nenhum projeto ainda.<br><br>Use: <code style="font-family:var(--mono);color:var(--accent)">new-project &lt;nome&gt;</code></div>';}
+data.forEach(p=>{grid.innerHTML+=`<a href="/projects/${p.slug}/"><div class="card" style="cursor:pointer;transition:border-color .15s" onmouseover="this.style.borderColor='${p.color}'" onmouseout="this.style.borderColor=''"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:10px;height:10px;border-radius:50%;background:${p.color}"></div><div style="font-weight:700;font-size:15px">${p.name}</div></div>${p.description?`<div style="font-size:12px;color:var(--text2);margin-bottom:12px">${p.description}</div>`:''}${p.language?`<div class="tag tag-code" style="margin-bottom:12px">${p.language}</div>`:''}<div style="display:flex;justify-content:space-between;align-items:end"><div><div style="font-size:22px;font-weight:700;font-family:var(--mono)">${fmt(p.seconds)}</div><div style="font-size:11px;color:var(--text3)">${p.sessions} sessão(ões)</div></div></div></div></a>`;});
+</script>{% endblock %}

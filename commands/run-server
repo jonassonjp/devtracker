@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+DEVTRACKER_URL="${DEVTRACKER_URL:-http://127.0.0.1:8000}"
+SERVER_CMD="${1:-python manage.py runserver}"
+echo "⬡  DevTracker — iniciando modo teste..."
+RESPONSE=$(curl -s -X POST "$DEVTRACKER_URL/api/run-server/" -H "Content-Type: application/json" -d "{}" 2>&1)
+if echo "$RESPONSE" | grep -q '"ok": true'; then
+  PROJECT=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['project'])")
+  echo "🔵  Modo teste ativo: $PROJECT"
+  echo "   Comando: $SERVER_CMD"
+  echo "   Use 'stop-server' para registrar fim do teste"
+  echo ""
+  eval "$SERVER_CMD"
+else
+  echo "❌  $(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('error','Erro'))" 2>/dev/null || echo "$RESPONSE")"
+  exit 1
+fi

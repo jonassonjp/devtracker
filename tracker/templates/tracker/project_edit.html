@@ -1,0 +1,16 @@
+{% extends "tracker/base.html" %}
+{% block title %}Editar {{ project.name }} — DevTracker{% endblock %}
+{% block nav_proj %}active{% endblock %}
+{% block content %}
+<div class="page-header"><div class="page-title">Editar Projeto</div><div class="page-sub">{{ project.name }}</div></div>
+<div style="max-width:560px"><div class="section">
+  <form method="post">{% csrf_token %}
+    <div class="form-group"><label class="form-label">Nome</label><input class="form-input" name="name" value="{{ project.name }}" required></div>
+    <div class="form-group"><label class="form-label">Descrição</label><textarea class="form-input" name="description">{{ project.description }}</textarea></div>
+    <div class="form-group"><label class="form-label">Linguagem</label><input class="form-input" name="language" value="{{ project.language }}" placeholder="Python, Django, React..."></div>
+    <div class="form-group"><label class="form-label">Caminho</label><input class="form-input" name="path" value="{{ project.path }}" placeholder="/home/user/projetos/meu-projeto"></div>
+    <div class="form-group"><label class="form-label">Cor</label><div style="display:flex;align-items:center;gap:12px"><input type="color" name="color" value="{{ project.color }}" style="width:48px;height:36px;border:none;background:none;cursor:pointer;padding:0"><span style="font-size:13px;color:var(--text2)">Cor do projeto no dashboard</span></div></div>
+    <div style="display:flex;gap:12px;margin-top:24px"><button type="submit" class="btn btn-primary">Salvar</button><a href="/projects/{{ project.slug }}/" class="btn btn-ghost">Cancelar</a></div>
+  </form>
+</div></div>
+{% endblock %}

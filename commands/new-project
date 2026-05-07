@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+DEVTRACKER_URL="${DEVTRACKER_URL:-http://127.0.0.1:8000}"
+if [ -z "$1" ]; then echo "❌  Uso: new-project <nome>"; exit 1; fi
+PROJECT_NAME="$*"; CURRENT_PATH="$(pwd)"
+echo "⬡  DevTracker — cadastrando projeto..."
+RESPONSE=$(curl -s -X POST "$DEVTRACKER_URL/api/new-project/" -H "Content-Type: application/json" -d "{\"name\": \"$PROJECT_NAME\", \"path\": \"$CURRENT_PATH\"}" 2>&1)
+if [ $? -ne 0 ]; then echo "❌  Erro: servidor não encontrado em $DEVTRACKER_URL"; exit 1; fi
+if echo "$RESPONSE" | grep -q '"created": true'; then
+  NAME=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['name'])")
+  SLUG=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['slug'])")
+  echo "✅  Projeto criado: $NAME  (slug: $SLUG)"
+  echo "   Edite em: $DEVTRACKER_URL/projects/$SLUG/edit/"
+elif echo "$RESPONSE" | grep -q '"created": false'; then
+  echo "⚠️   Projeto já existe: $(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['name'])")"
+else echo "❌  $RESPONSE"; exit 1; fi

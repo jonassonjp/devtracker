@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+DEVTRACKER_URL="${DEVTRACKER_URL:-http://127.0.0.1:8000}"
+CURRENT_PATH="$(pwd)"; FOLDER_NAME="$(basename "$CURRENT_PATH")"
+SLUG=$(echo "$FOLDER_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/-\+/-/g' | sed 's/^-//;s/-$//')
+echo "⬡  DevTracker — iniciando sessão..."
+echo "   Projeto detectado: $FOLDER_NAME"
+RESPONSE=$(curl -s -X POST "$DEVTRACKER_URL/api/start-session/" -H "Content-Type: application/json" -d "{\"slug\": \"$SLUG\", \"path\": \"$CURRENT_PATH\"}" 2>&1)
+if [ $? -ne 0 ]; then echo "❌  Servidor não encontrado em $DEVTRACKER_URL"; exit 1; fi
+if echo "$RESPONSE" | grep -q '"session_id"'; then
+  PROJECT=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['project'])")
+  AUTO=$(echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); ac=d.get('auto_closed',[]); print(', '.join(ac) if ac else '')")
+  [ -n "$AUTO" ] && echo "⚠️   Sessão anterior encerrada: $AUTO"
+  echo "✅  Sessão iniciada: $PROJECT"
+  echo "   Use 'run-server' ao testar, 'end-session' ao terminar."
+else
+  echo "❌  $(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('error','Erro'))" 2>/dev/null || echo "$RESPONSE")"
+  exit 1
+fi

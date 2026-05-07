@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+DEVTRACKER_URL="${DEVTRACKER_URL:-http://127.0.0.1:8000}"
+echo "⬡  DevTracker — encerrando modo teste..."
+RESPONSE=$(curl -s -X POST "$DEVTRACKER_URL/api/stop-server/" -H "Content-Type: application/json" -d "{}" 2>&1)
+if echo "$RESPONSE" | grep -q '"ok": true'; then echo "🟢  Modo teste encerrado. Voltando ao modo código."
+else echo "❌  $(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('error','Erro'))" 2>/dev/null || echo "$RESPONSE")"; exit 1; fi

@@ -1,0 +1,56 @@
+{% extends "tracker/base.html" %}
+{% block title %}Dashboard — DevTracker{% endblock %}
+{% block nav_dash %}active{% endblock %}
+{% block content %}
+<div class="page-header"><div class="page-title">Dashboard</div><div class="page-sub">Visão geral da sua atividade de desenvolvimento</div></div>
+<div class="cards">
+  <div class="card"><div class="card-label">Hoje</div><div class="card-value" id="today-val">—</div><div class="card-sub">tempo útil</div></div>
+  <div class="card"><div class="card-label">Esta semana</div><div class="card-value" id="week-val">—</div><div class="card-sub">últimos 7 dias</div></div>
+  <div class="card"><div class="card-label">Total</div><div class="card-value" id="total-val">—</div><div class="card-sub">tempo registrado</div></div>
+  <div class="card"><div class="card-label">Projetos</div><div class="card-value">{{ projects.count }}</div><div class="card-sub">ativos</div></div>
+</div>
+<div class="section">
+  <div class="section-title">Atividade — últimos 12 meses</div>
+  <div class="heatmap" id="heatmap"></div>
+  <div style="display:flex;gap:8px;align-items:center;margin-top:12px;font-size:11px;color:var(--text3);font-family:var(--mono)">menos
+    <div style="width:11px;height:11px;border-radius:2px;background:var(--bg3)"></div>
+    <div style="width:11px;height:11px;border-radius:2px;background:rgba(0,212,170,.2)"></div>
+    <div style="width:11px;height:11px;border-radius:2px;background:rgba(0,212,170,.45)"></div>
+    <div style="width:11px;height:11px;border-radius:2px;background:rgba(0,212,170,.7)"></div>
+    <div style="width:11px;height:11px;border-radius:2px;background:#00d4aa"></div>mais
+  </div>
+</div>
+<div class="grid-2">
+  <div class="section"><div class="section-title">Projetos por tempo</div><div class="bar-list" id="proj-bars"></div></div>
+  <div class="section"><div class="section-title">Sessões recentes</div>
+    <div class="session-list">
+      {% for s in recent_sessions %}
+      <div class="session-item">
+        <div class="session-dot" style="background:{{ s.project.color }}"></div>
+        <div class="session-project">{{ s.project.name }}</div>
+        <div class="session-date">{{ s.started_at|date:"d/m H:i" }}</div>
+        <div class="session-dur" data-secs="{{ s.useful_seconds }}">—</div>
+      </div>
+      {% empty %}<div style="color:var(--text3);font-size:13px">Nenhuma sessão ainda.</div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script>
+const heatData={{heatmap_data|safe}},projData={{project_data|safe}};
+function fmt(s){if(!s)return'0m';const h=Math.floor(s/3600),m=Math.floor((s%3600)/60);if(h>0)return h+'h '+(m>0?m+'m':'');return m+'m';}
+document.getElementById('today-val').textContent=fmt({{today_seconds}});
+document.getElementById('week-val').textContent=fmt({{week_seconds}});
+document.getElementById('total-val').textContent=fmt({{all_seconds}});
+const hm=document.getElementById('heatmap');
+const sorted=Object.entries(heatData).sort((a,b)=>a[0]<b[0]?-1:1);
+let week=document.createElement('div');week.className='heatmap-week';
+sorted.forEach(([d,secs],i)=>{const day=document.createElement('div');day.className='heatmap-day';const level=secs===0?0:secs<3600?1:secs<7200?2:secs<14400?3:4;if(level)day.setAttribute('data-level',level);day.title=d+': '+fmt(secs);week.appendChild(day);if((i+1)%7===0){hm.appendChild(week);week=document.createElement('div');week.className='heatmap-week';}});
+if(week.children.length)hm.appendChild(week);
+const pb=document.getElementById('proj-bars');
+if(!projData.length){pb.innerHTML='<div style="color:var(--text3);font-size:13px">Nenhum projeto com tempo ainda.</div>';}
+const maxP=projData[0]?.seconds||1;
+projData.forEach(p=>{pb.innerHTML+=`<div class="bar-item"><div class="bar-name">${p.name}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.round(p.seconds/maxP*100)}%;background:${p.color}"></div></div><div class="bar-time">${fmt(p.seconds)}</div></div>`;});
+document.querySelectorAll('[data-secs]').forEach(el=>{el.textContent=fmt(parseInt(el.dataset.secs));});
+</script>{% endblock %}
