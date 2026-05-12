@@ -55,7 +55,13 @@ def main():
         nickname = nickname or nick_default
 
         current = os.getcwd()
-        entered = input(f'Diretório [{current}]: ').strip()
+        try:
+            import readline
+            readline.set_pre_input_hook(lambda: (readline.insert_text(current), readline.redisplay()))
+            entered = input('Diretório: ').strip()
+            readline.set_pre_input_hook(None)
+        except ImportError:
+            entered = input(f'Diretório [{current}]: ').strip()
         directory = os.path.expanduser(entered) if entered else current
 
     else:
