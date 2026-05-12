@@ -1,0 +1,97 @@
+#!/usr/bin/env python3
+import os
+import sys
+import subprocess
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _lib import django_setup, fmt_time
+django_setup()
+
+from tracker.models import Project, Session
+
+
+def main():
+    projects = list(Project.objects.order_by('name'))
+    if not projects:
+        print('ℹ️   Nenhum projeto cadastrado. Rode: new-project')
+        sys.exit(0)
+
+    active_session = Session.objects.filter(ended_at__isnull=True).first()
+
+    print()
+    print('⬡  DevTracker — projetos')
+    print('━' * 38)
+    for i, p in enumerate(projects, 1):
+        indicator = ''
+        if active_session and active_session.project_id == p.id:
+            indicator = ' ▶ ativa'
+        print(f'  {i}. {p.name}{indicator}')
+    print('━' * 38)
+
+    try:
+        raw = input('Escolha o número do projeto: ').strip()
+        idx = int(raw) - 1
+        if idx < 0 or idx >= len(projects):
+            raise ValueError
+    except (ValueError, EOFError):
+        print('❌  Opção inválida.')
+        sys.exit(1)
+
+    project = projects[idx]
+
+    has_active = active_session and active_session.project_id == project.id
+
+    print(f'\n  Projeto: {project.name}')
+    print('  1. Iniciar sessão' if not has_active else '  1. Encerrar sessão')
+    print('  2. Apagar todos os dados')
+    print()
+
+    try:
+        action = input('Escolha a ação [1/2]: ').strip()
+    except EOFError:
+        action = ''
+
+    if action == '1':
+        if has_active:
+            start = active_session.started_at.strftime('%H:%M')
+            elapsed = fmt_time(active_session.total_seconds)
+            print(f'▶  Sessão ativa desde {start} ({elapsed} acumulados)')
+            try:
+                resp = input('Confirmar encerramento? [S/n] ').strip().lower()
+            except EOFError:
+                resp = 's'
+            if resp in ('', 's', 'sim', 'y', 'yes'):
+                os.execvp('end-session', ['end-session', project.nickname or project.slug])
+            else:
+                print('ℹ️   Nenhuma alteração.')
+        else:
+            if active_session:
+                print(f'⚠️   Sessão ativa de outro projeto será encerrada: {active_session.project.name}')
+            try:
+                resp = input('Confirmar início de sessão? [S/n] ').strip().lower()
+            except EOFError:
+                resp = 's'
+            if resp in ('', 's', 'sim', 'y', 'yes'):
+                os.execvp('start-session', ['start-session', project.nickname or project.slug])
+            else:
+                print('ℹ️   Nenhuma alteração.')
+
+    elif action == '2':
+        total_sessions = project.sessions.count()
+        print(f'\n⚠️   Isso apagará o projeto "{project.name}" e todas as suas {total_sessions} sessão(ões).')
+        try:
+            resp = input(f'   Digite o nome do projeto para confirmar: ').strip()
+        except EOFError:
+            resp = ''
+        if resp == project.name:
+            project.delete()
+            print(f'✅  Projeto "{project.name}" e todos os seus dados foram apagados.')
+        else:
+            print('❌  Nome incorreto. Nenhuma alteração.')
+
+    else:
+        print('❌  Opção inválida.')
+
+
+if __name__ == '__main__':
+    main()
