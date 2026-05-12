@@ -21,8 +21,8 @@ def main():
 
     session = Session.objects.filter(ended_at__isnull=True).first()
     if not session:
-        print('❌  Nenhuma sessão ativa no momento')
-        sys.exit(1)
+        print('ℹ️   Nenhuma sessão ativa no momento')
+        return
 
     if args.nickname and args.nickname != session.project.nickname:
         print(f'❌  Sessão ativa é do projeto "{session.project.nickname}", não "{args.nickname}"')

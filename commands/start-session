@@ -7,8 +7,17 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _lib import django_setup, open_pycharm
 django_setup()
 
+from datetime import datetime, time
 from django.utils import timezone
 from tracker.models import Project, Session, Event
+
+
+def auto_close_time(session):
+    today = timezone.now().date()
+    started = session.started_at.date()
+    if started < today:
+        return timezone.make_aware(datetime.combine(started, time(23, 59, 0)))
+    return timezone.now()
 
 
 def main():
@@ -27,11 +36,11 @@ def main():
 
     auto_closed = []
     for s in Session.objects.filter(ended_at__isnull=True):
-        s.ended_at = timezone.now()
+        s.ended_at = auto_close_time(s)
         s.auto_closed = True
         s.save()
         Event.objects.create(session=s, event_type='session_end', metadata={'auto_closed': True})
-        auto_closed.append(s.project.name)
+        auto_closed.append(f'{s.project.name} ({s.ended_at.strftime("%d/%m às %H:%M")})')
 
     if auto_closed:
         print(f'⚠️   Sessão anterior encerrada: {", ".join(auto_closed)}')
