@@ -2,9 +2,21 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
+from django.utils.text import slugify
 from datetime import timedelta
 import json
+import re
 from .models import Project, Session, Event
+
+
+def _unique_slug(name, exclude_id=None):
+    base = slugify(name)
+    slug, counter = base, 1
+    qs = Project.objects.exclude(id=exclude_id) if exclude_id else Project.objects
+    while qs.filter(slug=slug).exists():
+        slug = f'{base}-{counter}'
+        counter += 1
+    return slug
 
 def dashboard(request):
     projects = Project.objects.all()
@@ -48,15 +60,47 @@ def project_detail(request, slug):
 
 def project_edit(request, slug):
     project = get_object_or_404(Project, slug=slug)
+    errors = {}
     if request.method == 'POST':
-        project.name = request.POST.get('name', project.name)
-        project.description = request.POST.get('description', project.description)
-        project.language = request.POST.get('language', project.language)
-        project.color = request.POST.get('color', project.color)
-        project.path = request.POST.get('path', project.path)
-        project.save()
-        return redirect('project_detail', slug=project.slug)
-    return render(request, 'tracker/project_edit.html', {'project': project})
+        name     = request.POST.get('name', '').strip()
+        nickname = request.POST.get('nickname', '').strip()
+        description = request.POST.get('description', project.description)
+        language    = request.POST.get('language', project.language)
+        color       = request.POST.get('color', project.color)
+        path        = request.POST.get('path', project.path)
+
+        if not name:
+            errors['name'] = 'Nome é obrigatório.'
+        elif Project.objects.exclude(id=project.id).filter(name=name).exists():
+            errors['name'] = f'Já existe um projeto com o nome "{name}".'
+
+        if nickname:
+            if not re.match(r'^[a-zA-Z0-9_-]+$', nickname):
+                errors['nickname'] = 'Apelido não pode conter espaços ou caracteres especiais.'
+            elif Project.objects.exclude(id=project.id).filter(nickname=nickname).exists():
+                errors['nickname'] = f'Apelido "{nickname}" já está em uso.'
+
+        if not errors:
+            if name != project.name:
+                project.slug = _unique_slug(name, exclude_id=project.id)
+            project.name        = name
+            project.nickname    = nickname or None
+            project.description = description
+            project.language    = language
+            project.color       = color
+            project.path        = path
+            project.save()
+            return redirect('project_detail', slug=project.slug)
+
+        # re-render with submitted values and errors
+        project.name        = name
+        project.nickname    = nickname
+        project.description = description
+        project.language    = language
+        project.color       = color
+        project.path        = path
+
+    return render(request, 'tracker/project_edit.html', {'project': project, 'errors': errors})
 
 def projects_list(request):
     projects = Project.objects.all()
