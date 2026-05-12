@@ -1,0 +1,56 @@
+#!/usr/bin/env python3
+import os
+import sys
+import argparse
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _lib import django_setup
+django_setup()
+
+from tracker.models import Project, Session, Event
+
+
+def confirm(message):
+    ans = input(f'{message} [s/N]: ').strip().lower()
+    return ans in ('s', 'sim', 'y', 'yes')
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Apaga dados do DevTracker')
+    parser.add_argument('--nickname', help='Apelido do projeto (apaga só esse projeto)')
+    parser.add_argument('-y', action='store_true', help='Confirmar sem perguntar')
+    args = parser.parse_args()
+
+    if args.nickname:
+        try:
+            project = Project.objects.get(nickname=args.nickname)
+        except Project.DoesNotExist:
+            print(f'❌  Projeto "{args.nickname}" não encontrado')
+            sys.exit(1)
+
+        n_sessions = project.sessions.count()
+        msg = f'⚠️   Apagar projeto "{project.name}" e {n_sessions} sessão(ões)?'
+        if not args.y and not confirm(msg):
+            print('Operação cancelada.')
+            sys.exit(0)
+
+        name = project.name
+        project.delete()
+        print(f'✅  Projeto "{name}" apagado ({n_sessions} sessões removidas).')
+
+    else:
+        n_proj = Project.objects.count()
+        n_sess = Session.objects.count()
+        msg = f'⚠️   Apagar TODOS os dados? ({n_proj} projeto(s), {n_sess} sessão(ões))'
+        if not args.y and not confirm(msg):
+            print('Operação cancelada.')
+            sys.exit(0)
+
+        Event.objects.all().delete()
+        Session.objects.all().delete()
+        Project.objects.all().delete()
+        print(f'✅  Todos os dados apagados ({n_proj} projeto(s), {n_sess} sessão(ões)).')
+
+
+if __name__ == '__main__':
+    main()

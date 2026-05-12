@@ -4,6 +4,7 @@ from django.utils import timezone
 class Project(models.Model):
     name = models.CharField(max_length=200, unique=True)
     slug = models.SlugField(max_length=200, unique=True)
+    nickname = models.SlugField(max_length=100, unique=True, null=True, blank=True)
     description = models.TextField(blank=True)
     path = models.CharField(max_length=500, blank=True)
     language = models.CharField(max_length=100, blank=True)

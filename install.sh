@@ -3,27 +3,52 @@ set -e
 DEVTRACKER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BIN_DIR="$HOME/.local/bin"
 VENV_DIR="$DEVTRACKER_DIR/.venv"
+
 echo ""; echo "⬡  DevTracker — Instalação"; echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
 echo "📦  Instalando dependências Python..."
 python3 -m venv "$VENV_DIR"
 "$VENV_DIR/bin/pip" install --quiet --upgrade pip
 "$VENV_DIR/bin/pip" install --quiet django
 echo "   ✓ Django instalado"
+
 echo "🗄️   Configurando banco..."
 cd "$DEVTRACKER_DIR"
-"$VENV_DIR/bin/python" manage.py migrate --run-syncdb 2>/dev/null || "$VENV_DIR/bin/python" manage.py migrate
+"$VENV_DIR/bin/python" manage.py migrate 2>/dev/null || "$VENV_DIR/bin/python" manage.py migrate --run-syncdb
 echo "   ✓ Banco criado"
+
 echo "🔧  Instalando comandos globais em $BIN_DIR..."
 mkdir -p "$BIN_DIR"
-for CMD in new-project start-session run-server stop-server end-session; do
+
+# Comandos Python — executados via virtualenv
+for CMD in new-project start-session end-session reset-data; do
   cat > "$BIN_DIR/$CMD" << WRAPPER
 #!/usr/bin/env bash
 export DEVTRACKER_DIR="$DEVTRACKER_DIR"
-export DEVTRACKER_URL="\${DEVTRACKER_URL:-http://127.0.0.1:8000}"
-exec "$DEVTRACKER_DIR/commands/$CMD" "\$@"
+exec "$VENV_DIR/bin/python" "$DEVTRACKER_DIR/commands/$CMD" "\$@"
 WRAPPER
-  chmod +x "$BIN_DIR/$CMD"; echo "   ✓ $CMD"
+  chmod +x "$BIN_DIR/$CMD"
+  echo "   ✓ $CMD"
 done
+
+# run-server — script bash
+cat > "$BIN_DIR/run-server" << WRAPPER
+#!/usr/bin/env bash
+export DEVTRACKER_DIR="$DEVTRACKER_DIR"
+exec "$DEVTRACKER_DIR/commands/run-server" "\$@"
+WRAPPER
+chmod +x "$BIN_DIR/run-server"
+echo "   ✓ run-server"
+
 [[ ":$PATH:" != *":$BIN_DIR:"* ]] && echo -e "\n⚠️   Adicione ao ~/.bashrc:\n   export PATH=\"\$HOME/.local/bin:\$PATH\"\n   Depois: source ~/.bashrc"
-echo ""; echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; echo "✅  Instalação concluída!"
-echo "   1. Inicie: ./run.sh"; echo "   2. Dashboard: http://localhost:8000"; echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "✅  Instalação concluída!"
+echo ""
+echo "   Novo projeto:    new-project --name \"Nome\" --nickname apelido"
+echo "   Iniciar sessão:  start-session <apelido>"
+echo "   Encerrar:        end-session <apelido>"
+echo "   Ver dashboard:   run-server"
+echo "   Limpar dados:    reset-data [--nickname <apelido>]"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

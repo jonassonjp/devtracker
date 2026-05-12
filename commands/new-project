@@ -1,15 +1,81 @@
-#!/usr/bin/env bash
-DEVTRACKER_URL="${DEVTRACKER_URL:-http://127.0.0.1:8000}"
-if [ -z "$1" ]; then echo "❌  Uso: new-project <nome>"; exit 1; fi
-PROJECT_NAME="$*"; CURRENT_PATH="$(pwd)"
-echo "⬡  DevTracker — cadastrando projeto..."
-RESPONSE=$(curl -s -X POST "$DEVTRACKER_URL/api/new-project/" -H "Content-Type: application/json" -d "{\"name\": \"$PROJECT_NAME\", \"path\": \"$CURRENT_PATH\"}" 2>&1)
-if [ $? -ne 0 ]; then echo "❌  Erro: servidor não encontrado em $DEVTRACKER_URL"; exit 1; fi
-if echo "$RESPONSE" | grep -q '"created": true'; then
-  NAME=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['name'])")
-  SLUG=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['slug'])")
-  echo "✅  Projeto criado: $NAME  (slug: $SLUG)"
-  echo "   Edite em: $DEVTRACKER_URL/projects/$SLUG/edit/"
-elif echo "$RESPONSE" | grep -q '"created": false'; then
-  echo "⚠️   Projeto já existe: $(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['name'])")"
-else echo "❌  $RESPONSE"; exit 1; fi
+#!/usr/bin/env python3
+import os
+import re
+import sys
+import argparse
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _lib import django_setup, open_pycharm
+django_setup()
+
+from django.utils.text import slugify
+from tracker.models import Project
+
+
+def unique_slug(name):
+    base = slugify(name)
+    slug = base
+    counter = 1
+    while Project.objects.filter(slug=slug).exists():
+        slug = f'{base}-{counter}'
+        counter += 1
+    return slug
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Cadastra novo projeto no DevTracker')
+    parser.add_argument('--name', help='Nome do projeto (pode conter espaços)')
+    parser.add_argument('--nickname', help='Apelido único, sem espaços (usado nos comandos)')
+    parser.add_argument('--dir', dest='directory', help='Diretório do projeto')
+    args = parser.parse_args()
+
+    print('⬡  DevTracker — cadastrando projeto...')
+
+    name = args.name
+    nickname = args.nickname
+    directory = args.directory
+
+    if not name:
+        name = input('Nome do projeto: ').strip()
+        if not name:
+            print('❌  Nome é obrigatório')
+            sys.exit(1)
+
+    if not nickname:
+        default = re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')
+        entered = input(f'Apelido [{default}]: ').strip()
+        nickname = entered or default
+
+    if not re.match(r'^[a-zA-Z0-9_-]+$', nickname):
+        print('❌  Apelido não pode conter espaços ou caracteres especiais')
+        sys.exit(1)
+
+    if not directory:
+        current = os.getcwd()
+        entered = input(f'Diretório [{current}]: ').strip()
+        directory = entered or current
+
+    directory = os.path.expanduser(directory)
+
+    if Project.objects.filter(nickname=nickname).exists():
+        existing = Project.objects.get(nickname=nickname)
+        print(f'⚠️   Apelido "{nickname}" já existe: {existing.name}')
+        sys.exit(1)
+
+    project = Project.objects.create(
+        name=name,
+        slug=unique_slug(name),
+        nickname=nickname,
+        path=directory,
+    )
+
+    print(f'✅  Projeto criado: {project.name}')
+    print(f'   Apelido:   {project.nickname}')
+    print(f'   Diretório: {directory}')
+
+    if not open_pycharm(directory):
+        print(f'⚠️   PyCharm não encontrado. Abra manualmente: {directory}')
+
+
+if __name__ == '__main__':
+    main()

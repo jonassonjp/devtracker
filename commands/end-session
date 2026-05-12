@@ -1,39 +1,60 @@
-#!/usr/bin/env bash
-DEVTRACKER_URL="${DEVTRACKER_URL:-http://127.0.0.1:8000}"
-DEVTRACKER_DIR="${DEVTRACKER_DIR:-$HOME/devtracker}"
-NOTES="${1:-}"
-echo "⬡  DevTracker — encerrando sessão..."
-RESPONSE=$(curl -s -X POST "$DEVTRACKER_URL/api/end-session/" -H "Content-Type: application/json" -d "{\"notes\": \"$NOTES\"}" 2>&1)
-if ! echo "$RESPONSE" | grep -q '"ok": true'; then
-  echo "❌  $(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('error','Erro'))" 2>/dev/null || echo "$RESPONSE")"; exit 1
-fi
-PROJECT=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['project'])")
-fmts(){ python3 -c "s=$1;h,r=divmod(s,3600);m=r//60;print(f'{h}h {m}m' if h else f'{m}m')"; }
-TOTAL=$(fmts $(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['total_seconds'])"))
-USEFUL=$(fmts $(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['useful_seconds'])"))
-CODING=$(fmts $(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['coding_seconds'])"))
-TESTING=$(fmts $(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['testing_seconds'])"))
-START=$(echo "$RESPONSE" | python3 -c "import sys,json; from datetime import datetime; print(datetime.fromisoformat(json.load(sys.stdin)['started_at']).strftime('%H:%M'))")
-END=$(echo "$RESPONSE" | python3 -c "import sys,json; from datetime import datetime; print(datetime.fromisoformat(json.load(sys.stdin)['ended_at']).strftime('%H:%M'))")
-echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "✅  Sessão encerrada — $PROJECT"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "🕐  Horário:    $START → $END  ($TOTAL)"
-echo "⌨️   Codando:    $CODING"
-echo "🔵  Testando:   $TESTING"
-echo "💪  Útil:       $USEFUL"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo ""
-echo "📦  Backup no GitHub..."
-cd "$DEVTRACKER_DIR" || { echo "⚠️   Pasta $DEVTRACKER_DIR não encontrada"; exit 0; }
-if ! git rev-parse --git-dir > /dev/null 2>&1; then
-  echo "⚠️   Git não configurado. Configure com: git remote add origin git@github.com:jonassonjp/devtracker.git"; exit 0
-fi
-DATE=$(date '+%Y-%m-%d %H:%M')
-git add db.sqlite3
-if git diff --cached --quiet; then echo "ℹ️   Sem alterações no banco."
-else
-  git commit -m "backup: $PROJECT — $DATE" --quiet
-  git push --quiet && echo "✅  Backup enviado." || echo "⚠️   Push falhou. Commit salvo localmente."
-fi
+#!/usr/bin/env python3
+import os
+import sys
+import argparse
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _lib import django_setup, fmt_time
+django_setup()
+
+from django.utils import timezone
+from tracker.models import Project, Session, Event
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Encerra sessão de trabalho')
+    parser.add_argument('nickname', nargs='?', help='Apelido do projeto')
+    parser.add_argument('--name', dest='nickname_flag', metavar='APELIDO', help='Apelido do projeto')
+    parser.add_argument('--notes', default='', help='Notas sobre a sessão')
+    args = parser.parse_args()
+
+    nickname = args.nickname or args.nickname_flag
+    if not nickname:
+        print('❌  Informe o apelido: end-session <apelido>')
+        sys.exit(1)
+
+    print('⬡  DevTracker — encerrando sessão...')
+
+    try:
+        project = Project.objects.get(nickname=nickname)
+    except Project.DoesNotExist:
+        print(f'❌  Projeto "{nickname}" não encontrado')
+        sys.exit(1)
+
+    session = Session.objects.filter(project=project, ended_at__isnull=True).first()
+    if not session:
+        print(f'❌  Nenhuma sessão ativa para "{project.name}"')
+        sys.exit(1)
+
+    session.ended_at = timezone.now()
+    if args.notes:
+        session.notes = args.notes
+    session.save()
+    Event.objects.create(session=session, event_type='session_end')
+
+    start = session.started_at.strftime('%H:%M')
+    end = session.ended_at.strftime('%H:%M')
+    total = fmt_time(session.total_seconds)
+    total_proj = fmt_time(project.total_seconds)
+
+    print()
+    print('━' * 38)
+    print(f'✅  Sessão encerrada — {project.name}')
+    print('━' * 38)
+    print(f'🕐  Horário:     {start} → {end}  ({total})')
+    print(f'📊  Total acum.: {total_proj}')
+    print('━' * 38)
+
+
+if __name__ == '__main__':
+    main()

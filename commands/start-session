@@ -1,18 +1,56 @@
-#!/usr/bin/env bash
-DEVTRACKER_URL="${DEVTRACKER_URL:-http://127.0.0.1:8000}"
-CURRENT_PATH="$(pwd)"; FOLDER_NAME="$(basename "$CURRENT_PATH")"
-SLUG=$(echo "$FOLDER_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/-\+/-/g' | sed 's/^-//;s/-$//')
-echo "⬡  DevTracker — iniciando sessão..."
-echo "   Projeto detectado: $FOLDER_NAME"
-RESPONSE=$(curl -s -X POST "$DEVTRACKER_URL/api/start-session/" -H "Content-Type: application/json" -d "{\"slug\": \"$SLUG\", \"path\": \"$CURRENT_PATH\"}" 2>&1)
-if [ $? -ne 0 ]; then echo "❌  Servidor não encontrado em $DEVTRACKER_URL"; exit 1; fi
-if echo "$RESPONSE" | grep -q '"session_id"'; then
-  PROJECT=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['project'])")
-  AUTO=$(echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); ac=d.get('auto_closed',[]); print(', '.join(ac) if ac else '')")
-  [ -n "$AUTO" ] && echo "⚠️   Sessão anterior encerrada: $AUTO"
-  echo "✅  Sessão iniciada: $PROJECT"
-  echo "   Use 'run-server' ao testar, 'end-session' ao terminar."
-else
-  echo "❌  $(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('error','Erro'))" 2>/dev/null || echo "$RESPONSE")"
-  exit 1
-fi
+#!/usr/bin/env python3
+import os
+import sys
+import argparse
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _lib import django_setup, open_pycharm
+django_setup()
+
+from django.utils import timezone
+from tracker.models import Project, Session, Event
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Inicia sessão de trabalho')
+    parser.add_argument('nickname', help='Apelido do projeto')
+    args = parser.parse_args()
+
+    print('⬡  DevTracker — iniciando sessão...')
+
+    try:
+        project = Project.objects.get(nickname=args.nickname)
+    except Project.DoesNotExist:
+        print(f'❌  Projeto "{args.nickname}" não encontrado')
+        print(f'   Rode: new-project --nickname {args.nickname}')
+        sys.exit(1)
+
+    auto_closed = []
+    for s in Session.objects.filter(ended_at__isnull=True):
+        s.ended_at = timezone.now()
+        s.auto_closed = True
+        s.save()
+        Event.objects.create(session=s, event_type='session_end', metadata={'auto_closed': True})
+        auto_closed.append(s.project.name)
+
+    if auto_closed:
+        print(f'⚠️   Sessão anterior encerrada: {", ".join(auto_closed)}')
+
+    session = Session.objects.create(project=project)
+    Event.objects.create(session=session, event_type='session_start')
+
+    print(f'✅  Sessão iniciada: {project.name}')
+    print(f'   Diretório: {project.path or "(não definido)"}')
+    print(f'   Use "end-session {project.nickname}" ao terminar.')
+
+    if project.path and os.path.isdir(project.path):
+        if not open_pycharm(project.path):
+            print('⚠️   PyCharm não encontrado.')
+    elif not project.path:
+        print('⚠️   Diretório não configurado. Edite em: run-server → projetos')
+    else:
+        print(f'⚠️   Diretório não encontrado: {project.path}')
+
+
+if __name__ == '__main__':
+    main()
