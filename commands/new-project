@@ -45,8 +45,14 @@ def main():
             sys.exit(1)
 
         nick_default = default_nickname(name)
-        entered = input(f'Apelido [{nick_default}]: ').strip()
-        nickname = entered or nick_default
+        try:
+            import readline
+            readline.set_pre_input_hook(lambda: (readline.insert_text(nick_default), readline.redisplay()))
+            nickname = input('Apelido: ').strip()
+            readline.set_pre_input_hook(None)
+        except ImportError:
+            nickname = input(f'Apelido [{nick_default}]: ').strip()
+        nickname = nickname or nick_default
 
         current = os.getcwd()
         entered = input(f'Diretório [{current}]: ').strip()
