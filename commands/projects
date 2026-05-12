@@ -33,7 +33,9 @@ def show_menu():
         idx = int(raw) - 1
         if idx < 0 or idx >= len(projects):
             raise ValueError
-    except (ValueError, EOFError):
+    except EOFError:
+        sys.exit(0)
+    except ValueError:
         print('❌  Opção inválida.')
         return None, None
 
@@ -52,7 +54,7 @@ def handle_project(project, active_session):
     try:
         action = input('Escolha a ação [0/1/2]: ').strip()
     except EOFError:
-        action = '0'
+        sys.exit(0)
 
     if action == '0':
         return
