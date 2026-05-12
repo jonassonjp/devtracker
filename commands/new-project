@@ -39,10 +39,15 @@ def main():
         print('⬡  DevTracker — novo projeto')
         print()
 
-        name = input('Nome do projeto: ').strip()
-        if not name:
-            print('❌  Nome é obrigatório')
-            sys.exit(1)
+        while True:
+            name = input('Nome do projeto: ').strip()
+            if not name:
+                print('❌  Nome é obrigatório')
+                continue
+            if Project.objects.filter(name=name).exists():
+                print(f'⚠️   Projeto "{name}" já existe')
+                continue
+            break
 
         nick_default = default_nickname(name)
         while True:
