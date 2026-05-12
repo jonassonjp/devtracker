@@ -8,32 +8,24 @@ from _lib import django_setup, fmt_time
 django_setup()
 
 from django.utils import timezone
-from tracker.models import Project, Session, Event
+from tracker.models import Session, Event
 
 
 def main():
     parser = argparse.ArgumentParser(description='Encerra sessão de trabalho')
-    parser.add_argument('nickname', nargs='?', help='Apelido do projeto')
-    parser.add_argument('--name', dest='nickname_flag', metavar='APELIDO', help='Apelido do projeto')
+    parser.add_argument('nickname', nargs='?', help='Apelido do projeto (opcional)')
     parser.add_argument('--notes', default='', help='Notas sobre a sessão')
     args = parser.parse_args()
 
-    nickname = args.nickname or args.nickname_flag
-    if not nickname:
-        print('❌  Informe o apelido: end-session <apelido>')
-        sys.exit(1)
-
     print('⬡  DevTracker — encerrando sessão...')
 
-    try:
-        project = Project.objects.get(nickname=nickname)
-    except Project.DoesNotExist:
-        print(f'❌  Projeto "{nickname}" não encontrado')
+    session = Session.objects.filter(ended_at__isnull=True).first()
+    if not session:
+        print('❌  Nenhuma sessão ativa no momento')
         sys.exit(1)
 
-    session = Session.objects.filter(project=project, ended_at__isnull=True).first()
-    if not session:
-        print(f'❌  Nenhuma sessão ativa para "{project.name}"')
+    if args.nickname and args.nickname != session.project.nickname:
+        print(f'❌  Sessão ativa é do projeto "{session.project.nickname}", não "{args.nickname}"')
         sys.exit(1)
 
     session.ended_at = timezone.now()
@@ -45,11 +37,11 @@ def main():
     start = session.started_at.strftime('%H:%M')
     end = session.ended_at.strftime('%H:%M')
     total = fmt_time(session.total_seconds)
-    total_proj = fmt_time(project.total_seconds)
+    total_proj = fmt_time(session.project.total_seconds)
 
     print()
     print('━' * 38)
-    print(f'✅  Sessão encerrada — {project.name}')
+    print(f'✅  Sessão encerrada — {session.project.name}')
     print('━' * 38)
     print(f'🕐  Horário:     {start} → {end}  ({total})')
     print(f'📊  Total acum.: {total_proj}')
