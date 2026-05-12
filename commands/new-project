@@ -45,14 +45,25 @@ def main():
             sys.exit(1)
 
         nick_default = default_nickname(name)
-        try:
-            import readline
-            readline.set_pre_input_hook(lambda: (readline.insert_text(nick_default), readline.redisplay()))
-            nickname = input('Apelido: ').strip()
-            readline.set_pre_input_hook(None)
-        except ImportError:
-            nickname = input(f'Apelido [{nick_default}]: ').strip()
-        nickname = nickname or nick_default
+        while True:
+            try:
+                import readline
+                readline.set_pre_input_hook(lambda: (readline.insert_text(nick_default), readline.redisplay()))
+                nickname = input('Apelido: ').strip()
+                readline.set_pre_input_hook(None)
+            except ImportError:
+                nickname = input(f'Apelido [{nick_default}]: ').strip()
+            nickname = nickname or nick_default
+            if not re.match(r'^[a-zA-Z0-9_-]+$', nickname):
+                print('❌  Apelido não pode conter espaços ou caracteres especiais')
+                nick_default = nickname
+                continue
+            if Project.objects.filter(nickname=nickname).exists():
+                existing = Project.objects.get(nickname=nickname)
+                print(f'⚠️   Apelido "{nickname}" já existe: {existing.name}')
+                nick_default = nickname
+                continue
+            break
 
         current = os.getcwd()
         try:
@@ -82,12 +93,12 @@ def main():
         print('❌  Apelido não pode conter espaços ou caracteres especiais')
         sys.exit(1)
 
-    directory = os.path.expanduser(directory)
-
     if Project.objects.filter(nickname=nickname).exists():
         existing = Project.objects.get(nickname=nickname)
         print(f'⚠️   Apelido "{nickname}" já existe: {existing.name}')
         sys.exit(1)
+
+    directory = os.path.expanduser(directory)
 
     project = Project.objects.create(
         name=name,
