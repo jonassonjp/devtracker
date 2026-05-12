@@ -32,7 +32,7 @@ def main():
         msg = f'⚠️   Apagar projeto "{project.name}" e {n_sessions} sessão(ões)?'
         if not args.y and not confirm(msg):
             print('Operação cancelada.')
-            sys.exit(0)
+            return
 
         name = project.name
         project.delete()
@@ -44,7 +44,7 @@ def main():
         msg = f'⚠️   Apagar TODOS os dados? ({n_proj} projeto(s), {n_sess} sessão(ões))'
         if not args.y and not confirm(msg):
             print('Operação cancelada.')
-            sys.exit(0)
+            return
 
         Event.objects.all().delete()
         Session.objects.all().delete()
