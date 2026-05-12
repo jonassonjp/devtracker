@@ -22,6 +22,10 @@ def unique_slug(name):
     return slug
 
 
+def default_nickname(name):
+    return re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')
+
+
 def main():
     parser = argparse.ArgumentParser(description='Cadastra novo projeto no DevTracker')
     parser.add_argument('--name', help='Nome do projeto (pode conter espaços)')
@@ -29,31 +33,42 @@ def main():
     parser.add_argument('--dir', dest='directory', help='Diretório do projeto')
     args = parser.parse_args()
 
-    print('⬡  DevTracker — cadastrando projeto...')
+    interactive = not any([args.name, args.nickname, args.directory])
 
-    name = args.name
-    nickname = args.nickname
-    directory = args.directory
+    if interactive:
+        print('⬡  DevTracker — novo projeto')
+        print()
 
-    if not name:
         name = input('Nome do projeto: ').strip()
         if not name:
             print('❌  Nome é obrigatório')
             sys.exit(1)
 
-    if not nickname:
-        default = re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')
-        entered = input(f'Apelido [{default}]: ').strip()
-        nickname = entered or default
+        nick_default = default_nickname(name)
+        entered = input(f'Apelido [{nick_default}]: ').strip()
+        nickname = entered or nick_default
+
+        current = os.getcwd()
+        entered = input(f'Diretório [{current}]: ').strip()
+        directory = os.path.expanduser(entered) if entered else current
+
+    else:
+        print('⬡  DevTracker — cadastrando projeto...')
+
+        name = args.name
+        nickname = args.nickname or (default_nickname(args.name) if args.name else None)
+        directory = os.path.expanduser(args.directory) if args.directory else os.getcwd()
+
+        if not name:
+            print('❌  --name é obrigatório')
+            sys.exit(1)
+        if not nickname:
+            print('❌  --nickname é obrigatório')
+            sys.exit(1)
 
     if not re.match(r'^[a-zA-Z0-9_-]+$', nickname):
         print('❌  Apelido não pode conter espaços ou caracteres especiais')
         sys.exit(1)
-
-    if not directory:
-        current = os.getcwd()
-        entered = input(f'Diretório [{current}]: ').strip()
-        directory = entered or current
 
     directory = os.path.expanduser(directory)
 
