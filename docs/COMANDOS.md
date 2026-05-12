@@ -1,132 +1,128 @@
 # Comandos
 
-Todos os comandos se comunicam com o servidor local via HTTP. O servidor precisa estar rodando (`run.sh`) para que funcionem.
-
-A URL do servidor é lida da variável de ambiente `DEVTRACKER_URL` (padrão: `http://127.0.0.1:8000`). Veja a [instalação](INSTALACAO.md) para configurar corretamente.
+Os comandos gravam diretamente no banco de dados SQLite via Django ORM — **sem precisar que o servidor esteja rodando**.
 
 ---
 
 ## new-project
 
-Cadastra um novo projeto no DevTracker.
+Cadastra um novo projeto. Executa uma única vez por projeto.
 
 ```bash
-new-project <nome>
+# Com parâmetros
+new-project --name "Nome do Projeto" --nickname apelido --dir ~/workspace/pasta
+
+# Sem parâmetros — modo interativo (pergunta tudo)
+new-project
 ```
+
+**Parâmetros:**
+
+| Parâmetro | Obrigatório | Descrição |
+|-----------|-------------|-----------|
+| `--name` | Sim | Nome completo (pode conter espaços, use aspas) |
+| `--nickname` | Não | Apelido sem espaços, usado nos demais comandos. Derivado do nome se omitido |
+| `--dir` | Não | Diretório do projeto. Usa o diretório atual se omitido |
+
+**Comportamento:**
+- Sem nenhum parâmetro: modo interativo — pergunta nome, apelido e diretório
+- Com parâmetros: modo direto, sem prompts
+- Após criar, abre o PyCharm no diretório informado
+- Apelidos duplicados ou com caracteres especiais são rejeitados
 
 **Exemplos:**
 
 ```bash
-new-project MinhaAPI
-new-project "Meu Site Pessoal"
+new-project --name "Minha API" --nickname minhaapi --dir ~/workspace/minhaapi
+new-project --name "Site Pessoal"          # apelido derivado: site-pessoal
+new-project                                # modo interativo
 ```
-
-- O slug é gerado automaticamente a partir do nome (ex: `meu-site-pessoal`)
-- O caminho atual (`pwd`) é salvo como localização do projeto
-- Se o projeto já existir, avisa sem criar duplicata
-- Após criar, acesse `/projects/<slug>/edit/` para adicionar descrição, linguagem e cor
 
 ---
 
 ## start-session
 
-Inicia uma sessão de trabalho para o projeto da pasta atual.
+Inicia uma sessão de trabalho e abre o PyCharm no diretório do projeto.
 
 ```bash
-start-session
+start-session <apelido>
 ```
 
-- O projeto é detectado automaticamente pelo nome da pasta atual
-- O projeto precisa existir (criado com `new-project`). Caso contrário, o comando informa o slug esperado
-- Se houver outra sessão aberta, ela é encerrada automaticamente (`auto_closed`)
-- Atualiza o caminho do projeto para o diretório atual
+**Comportamento:**
+- Registra a hora de início no banco de dados
+- Abre o PyCharm com o diretório do projeto
+- Se houver outra sessão aberta, ela é encerrada automaticamente:
+  - Sessão do **mesmo dia** → encerrada no momento atual
+  - Sessão de **dia anterior** → encerrada às 23:59 daquele dia
 
-**Execute sempre dentro da pasta do projeto que você vai trabalhar.**
-
----
-
-## run-server
-
-Registra o início do modo de teste e executa o servidor da sua aplicação.
+**Exemplo:**
 
 ```bash
-run-server
-run-server "comando customizado"
+start-session minhaapi
 ```
-
-**Exemplos:**
-
-```bash
-run-server                          # executa: python manage.py runserver
-run-server "npm start"
-run-server "flask run --port 5000"
-```
-
-- Marca um evento `server_start` na sessão ativa — a partir daqui o tempo é contado como **testando**
-- Em seguida executa o comando informado (ou `python manage.py runserver` por padrão)
-- Quando você encerrar o comando (Ctrl+C), o servidor da aplicação para, mas o modo teste segue ativo no DevTracker até você rodar `stop-server`
-
----
-
-## stop-server
-
-Registra o fim do modo de teste.
-
-```bash
-stop-server
-```
-
-- Marca um evento `server_stop` na sessão ativa
-- O tempo volta a ser contado como **codando**
-- Não encerra o servidor da aplicação — apenas registra que o período de teste acabou
 
 ---
 
 ## end-session
 
-Encerra a sessão de trabalho, exibe o resumo e faz backup no GitHub.
+Encerra a sessão ativa e exibe o resumo.
 
 ```bash
-end-session
-end-session "notas opcionais sobre o que foi feito"
+end-session                  # encerra o que estiver ativo
+end-session <apelido>        # encerra e valida que é o projeto esperado
+end-session --notes "texto"  # adiciona anotação à sessão
 ```
+
+**Comportamento:**
+- Sem parâmetro: encerra qualquer sessão ativa
+- Com apelido: encerra somente se a sessão ativa for desse projeto; caso contrário, exibe erro
+- Sem sessão ativa: exibe informação e sai normalmente (sem erro)
 
 **Exemplo de saída:**
 
 ```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✅  Sessão encerrada — MinhaAPI
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🕐  Horário:    09:15 → 11:42  (2h 27m)
-⌨️   Codando:    1h 53m
-🔵  Testando:   22m
-💪  Útil:       2h 15m
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅  Sessão encerrada — Minha API
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🕐  Horário:     09:15 → 11:42  (2h 27m)
+📊  Total acum.: 14h 30m
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
-
-Após exibir o resumo, o comando:
-
-1. Entra no diretório do DevTracker (`~/workspace/devtracker`)
-2. Faz `git add db.sqlite3`
-3. Cria um commit: `backup: <projeto> — <data hora>`
-4. Executa `git push`
-
-Se o push falhar, o commit é mantido localmente e você pode subir manualmente depois.
 
 ---
 
-## Variáveis de ambiente
+## run-server
 
-| Variável | Padrão | Descrição |
-|----------|--------|-----------|
-| `DEVTRACKER_URL` | `http://127.0.0.1:8000` | URL do servidor DevTracker |
-| `DEVTRACKER_DIR` | `$HOME/devtracker` | Caminho do repositório DevTracker (usado pelo `end-session` para o backup) |
-
-Configure no seu `~/.bashrc`:
+Abre o dashboard web com o histórico de todos os projetos.
 
 ```bash
-export DEVTRACKER_URL="http://127.0.0.1:7000"
-export DEVTRACKER_DIR="$HOME/workspace/devtracker"
+run-server
+```
+
+- Inicia o Django na porta `7000`
+- Abre o navegador em `http://localhost:7000` automaticamente
+- Encerre com `Ctrl+C`
+
+> Este é o único comando que requer o servidor rodando — os demais comandos funcionam sem ele.
+
+---
+
+## reset-data
+
+Apaga dados do DevTracker. Pede confirmação antes de agir.
+
+```bash
+reset-data --nickname <apelido>   # apaga projeto específico e suas sessões
+reset-data                        # apaga todos os dados
+reset-data -y                     # confirma sem perguntar
+```
+
+**Exemplos:**
+
+```bash
+reset-data --nickname minhaapi        # apaga o projeto "minhaapi"
+reset-data --nickname minhaapi -y     # sem confirmação
+reset-data -y                         # apaga tudo sem confirmação
 ```
 
 ---
@@ -134,19 +130,16 @@ export DEVTRACKER_DIR="$HOME/workspace/devtracker"
 ## Fluxo completo de uma sessão
 
 ```bash
-# Dentro da pasta do projeto
-start-session
+# Primeira vez: cadastra o projeto
+new-project --name "Minha API" --nickname minhaapi --dir ~/workspace/minhaapi
+
+# Início do dia de trabalho
+start-session minhaapi         # registra início + abre PyCharm
 
 # ... trabalha no código ...
 
-run-server "npm run dev"    # marca início do teste, sobe a aplicação
+end-session --notes "implementei autenticação JWT"   # registra fim + exibe resumo
 
-# ... testa no navegador ...
-
-# Ctrl+C para parar a aplicação
-stop-server                 # marca fim do teste
-
-# ... mais código ...
-
-end-session "implementei o login com JWT"
+# Para ver o histórico no navegador
+run-server
 ```

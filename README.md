@@ -1,24 +1,16 @@
 # DevTracker
 
-Rastreador de tempo de desenvolvimento pessoal. Registra quanto tempo você passa **codando** e **testando** em cada projeto, com histórico visual e backup automático no GitHub.
+Rastreador de tempo de desenvolvimento pessoal. Registra quanto tempo você passa em cada projeto, com histórico visual e dashboard web.
 
 ## Como funciona
 
-O DevTracker roda como um servidor local em segundo plano. Você interage com ele via comandos de terminal enquanto trabalha nos seus projetos. Ao final de cada sessão, os dados são salvos e enviados automaticamente para o GitHub.
+Os comandos de terminal gravam diretamente no banco de dados SQLite — **sem precisar que o servidor esteja rodando**. O servidor (`run-server`) é usado apenas para visualizar o dashboard no navegador.
 
-### Divisão do tempo
-
-Cada sessão distingue dois tipos de atividade:
-
-- **Codando** — tempo passado escrevendo código (sem servidor de teste ativo)
-- **Testando** — tempo com o servidor da aplicação rodando (`run-server`)
-- **Útil** — soma dos dois (tempo de pausa é descartado)
-
-O cálculo é feito a partir de eventos registrados na sessão, não por polling.
+Ao iniciar uma sessão, o PyCharm é aberto automaticamente no diretório do projeto.
 
 ## Interface web
 
-Acesse `http://localhost:7000` após iniciar o servidor.
+Execute `run-server` e acesse `http://localhost:7000`.
 
 | Página | URL |
 |--------|-----|
@@ -29,7 +21,7 @@ Acesse `http://localhost:7000` após iniciar o servidor.
 
 ### Dashboard
 
-- Tempo útil de hoje, da semana e total acumulado
+- Tempo de hoje, da semana e total acumulado
 - Heatmap de atividade dos últimos 12 meses
 - Ranking de projetos por tempo
 - 10 sessões mais recentes
@@ -37,49 +29,54 @@ Acesse `http://localhost:7000` após iniciar o servidor.
 ## Fluxo de uso
 
 ```bash
-# 1. Dentro da pasta do projeto, inicia a sessão
-start-session
+# 1. Cadastra o projeto (uma única vez)
+new-project --name "Minha API" --nickname minhaapi --dir ~/workspace/minhaapi
 
-# 2. Codando normalmente...
+# 2. Inicia a sessão — abre o PyCharm automaticamente
+start-session minhaapi
 
-# 3. Ao subir o servidor para testar
-run-server
+# 3. Trabalha no código...
 
-# 4. Quando parar os testes
-stop-server
-
-# 5. Ao terminar o trabalho do dia
-end-session "comentário opcional"
+# 4. Encerra a sessão e exibe o resumo
+end-session
 ```
-
-O `end-session` exibe um resumo da sessão e faz backup automático do banco de dados no GitHub.
 
 ## Stack
 
 - **Backend:** Python 3.10+, Django, SQLite
 - **Frontend:** HTML, CSS e JavaScript puro (sem frameworks)
-- **Servidor:** Django dev server, apenas uso local
+- **Dashboard:** Django dev server, apenas uso local
 
 ## Estrutura do projeto
 
 ```
 devtracker/
 ├── commands/          # Scripts dos comandos globais
+│   ├── _lib.py        # Utilitários compartilhados (Django setup, PyCharm, formatação)
 │   ├── new-project
 │   ├── start-session
+│   ├── end-session
 │   ├── run-server
-│   ├── stop-server
-│   └── end-session
+│   └── reset-data
 ├── tracker/           # App Django principal
 │   ├── models.py      # Project, Session, Event
 │   ├── views.py       # Views e endpoints da API
 │   ├── urls.py        # Roteamento
+│   ├── tests.py       # Suite de testes (33 testes)
 │   └── templates/     # Interface web
 ├── devtracker/        # Configurações Django
 ├── install.sh         # Script de instalação
-├── run.sh             # Inicia o servidor
-└── db.sqlite3         # Banco de dados (versionado para backup)
+├── run.sh             # Inicia o servidor do dashboard
+└── db.sqlite3         # Banco de dados
 ```
+
+## Testes
+
+```bash
+.venv/bin/python manage.py test tracker
+```
+
+33 testes cobrindo todos os comandos e cenários de erro.
 
 ## Documentação
 

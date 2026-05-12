@@ -5,6 +5,7 @@
 - Python 3.10 ou superior
 - Git configurado
 - `~/.local/bin` no seu `PATH`
+- PyCharm com o comando `charm` disponível (JetBrains Toolbox)
 
 ## Passo a passo
 
@@ -42,22 +43,12 @@ Depois recarregue o shell:
 source ~/.bashrc
 ```
 
-### 4. Inicie o servidor
+### 4. Configure a variável de ambiente
+
+Adicione ao seu `~/.bashrc`:
 
 ```bash
-~/workspace/devtracker/run.sh
-```
-
-O servidor roda em `http://localhost:7000`. Deixe-o aberto em um terminal separado (ou em segundo plano).
-
-> **Importante:** o servidor precisa estar rodando para que os comandos funcionem.
-
-### 5. Configure a variável de ambiente (obrigatório)
-
-Os comandos apontam por padrão para a porta `8000`. Como o servidor roda na porta `7000`, adicione ao seu `~/.bashrc`:
-
-```bash
-export DEVTRACKER_URL="http://127.0.0.1:7000"
+export DEVTRACKER_DIR="$HOME/workspace/devtracker"
 ```
 
 Recarregue:
@@ -66,24 +57,25 @@ Recarregue:
 source ~/.bashrc
 ```
 
-### 6. Configure o backup automático
-
-O comando `end-session` faz commit e push do banco de dados. Para funcionar, o repositório precisa ter um remote configurado:
-
-```bash
-cd ~/workspace/devtracker
-git remote add origin git@github.com:jonassonjp/devtracker.git
-```
-
 ## Verificação
 
-Com o servidor rodando, teste um dos comandos:
+Cadastre um projeto de teste:
 
 ```bash
-new-project "Meu Projeto Teste"
+new-project --name "Meu Projeto Teste" --nickname teste --dir /tmp
 ```
 
 Se retornar `✅ Projeto criado`, a instalação está funcionando.
+
+> Os comandos de terminal gravam diretamente no banco de dados — **não é necessário ter o servidor rodando** para usar `new-project`, `start-session`, `end-session` ou `reset-data`. O servidor (`run-server`) é usado apenas para visualizar o dashboard.
+
+## Abrindo o dashboard
+
+```bash
+run-server
+```
+
+Abre o Django na porta `7000` e o navegador em `http://localhost:7000` automaticamente.
 
 ## Desinstalação
 
@@ -91,8 +83,8 @@ Para remover os comandos globais:
 
 ```bash
 rm ~/.local/bin/new-project ~/.local/bin/start-session \
-   ~/.local/bin/run-server ~/.local/bin/stop-server \
-   ~/.local/bin/end-session
+   ~/.local/bin/end-session ~/.local/bin/run-server \
+   ~/.local/bin/reset-data
 ```
 
 Para remover o servidor e os dados:
