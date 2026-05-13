@@ -9,8 +9,17 @@ echo ""; echo "⬡  DevTracker — Instalação"; echo "━━━━━━━━
 echo "📦  Instalando dependências Python..."
 python3 -m venv "$VENV_DIR"
 "$VENV_DIR/bin/pip" install --quiet --upgrade pip
-"$VENV_DIR/bin/pip" install --quiet django anthropic
-echo "   ✓ Django e anthropic instalados"
+"$VENV_DIR/bin/pip" install --quiet django anthropic python-dotenv
+echo "   ✓ Django, anthropic e python-dotenv instalados"
+
+echo "🔑  Configurando .env..."
+if [[ ! -f "$DEVTRACKER_DIR/.env" ]]; then
+  cp "$DEVTRACKER_DIR/.env.example" "$DEVTRACKER_DIR/.env"
+  echo "   ✓ .env criado a partir de .env.example"
+  echo "   ⚠️  Edite $DEVTRACKER_DIR/.env e adicione sua ANTHROPIC_API_KEY"
+else
+  echo "   ✓ .env já existe"
+fi
 
 echo "🗄️   Configurando banco..."
 cd "$DEVTRACKER_DIR"

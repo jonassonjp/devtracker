@@ -1,62 +1,92 @@
 #!/usr/bin/env python3
-import os
-import sys
 import argparse
+import os
+import signal
+import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _lib import django_setup, fmt_time, generate_session_summary
+
 django_setup()
 
 from django.utils import timezone
-from tracker.models import Session, Event
+
+from tracker.models import Event, Session
+
+_WATCHER_PID_FILE = "/tmp/devtracker_watcher.pid"
+
+
+def _stop_watcher():
+    if not os.path.exists(_WATCHER_PID_FILE):
+        return
+    try:
+        with open(_WATCHER_PID_FILE) as f:
+            pid = int(f.read().strip())
+        os.kill(pid, signal.SIGTERM)
+    except (ValueError, ProcessLookupError, PermissionError):
+        pass
+    finally:
+        if os.path.exists(_WATCHER_PID_FILE):
+            os.remove(_WATCHER_PID_FILE)
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Encerra sessão de trabalho')
-    parser.add_argument('nickname', nargs='?', help='Apelido do projeto (opcional)')
-    parser.add_argument('--notes', default='', help='Notas sobre a sessão')
+    parser = argparse.ArgumentParser(description="Encerra sessão de trabalho")
+    parser.add_argument("nickname", nargs="?", help="Apelido do projeto (opcional)")
+    parser.add_argument("--notes", default="", help="Notas sobre a sessão")
     summ = parser.add_mutually_exclusive_group()
-    summ.add_argument('--summarize', action='store_true', help='Gerar resumo via git+IA (força sim)')
-    summ.add_argument('--no-summarize', dest='no_summarize', action='store_true', help='Pular resumo sem perguntar')
+    summ.add_argument(
+        "--summarize", action="store_true", help="Gerar resumo via git+IA (força sim)"
+    )
+    summ.add_argument(
+        "--no-summarize",
+        dest="no_summarize",
+        action="store_true",
+        help="Pular resumo sem perguntar",
+    )
     args = parser.parse_args()
 
-    print('⬡  DevTracker — encerrando sessão...')
+    print("⬡  DevTracker — encerrando sessão...")
 
     session = Session.objects.filter(ended_at__isnull=True).first()
     if not session:
-        print('ℹ️   Nenhuma sessão ativa no momento')
+        print("ℹ️   Nenhuma sessão ativa no momento")
         return
 
     if args.nickname and args.nickname != session.project.nickname:
-        print(f'❌  Sessão ativa é do projeto "{session.project.nickname}", não "{args.nickname}"')
+        active = session.project.nickname
+        given = args.nickname
+        print(f'❌  Sessão ativa é do projeto "{active}", não "{given}"')
         sys.exit(1)
+
+    _stop_watcher()
 
     session.ended_at = timezone.now()
     if args.notes:
         session.notes = args.notes
     session.save()
-    Event.objects.create(session=session, event_type='session_end')
+    Event.objects.create(session=session, event_type="session_end")
 
-    start = session.started_at.strftime('%H:%M')
-    end = session.ended_at.strftime('%H:%M')
+    start = session.started_at.strftime("%H:%M")
+    end = session.ended_at.strftime("%H:%M")
     total = fmt_time(session.total_seconds)
     total_proj = fmt_time(session.project.total_seconds)
 
     print()
-    print('━' * 38)
-    print(f'✅  Sessão encerrada — {session.project.name}')
-    print('━' * 38)
-    print(f'🕐  Horário:     {start} → {end}  ({total})')
-    print(f'📊  Total acum.: {total_proj}')
-    print('━' * 38)
+    print("━" * 38)
+    print(f"✅  Sessão encerrada — {session.project.name}")
+    print("━" * 38)
+    print(f"🕐  Horário:     {start} → {end}  ({total})")
+    print(f"📊  Total acum.: {total_proj}")
+    print("━" * 38)
 
     if not args.no_summarize and not args.notes:
         if args.summarize:
             do_summary = True
         else:
             try:
-                resp = input('Gerar resumo da sessão via git? [S/n] ').strip().lower()
-                do_summary = resp in ('', 's', 'sim', 'y', 'yes')
+                resp = input("Gerar resumo da sessão via git? [S/n] ").strip().lower()
+                do_summary = resp in ("", "s", "sim", "y", "yes")
             except EOFError:
                 do_summary = False
         if do_summary:
@@ -65,9 +95,9 @@ def main():
             )
             if summary:
                 session.notes = summary
-                session.save(update_fields=['notes'])
-                print('📝  Resumo salvo.')
+                session.save(update_fields=["notes"])
+                print("📝  Resumo salvo.")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

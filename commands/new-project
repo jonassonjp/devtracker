@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
+import argparse
 import os
 import re
 import sys
-import argparse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _lib import django_setup, open_pycharm
+
 django_setup()
 
 from django.utils.text import slugify
+
 from tracker.models import Project
 
 
@@ -17,32 +19,38 @@ def unique_slug(name):
     slug = base
     counter = 1
     while Project.objects.filter(slug=slug).exists():
-        slug = f'{base}-{counter}'
+        slug = f"{base}-{counter}"
         counter += 1
     return slug
 
 
 def default_nickname(name):
-    return re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')
+    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Cadastra novo projeto no DevTracker')
-    parser.add_argument('--name', help='Nome do projeto (pode conter espaços)')
-    parser.add_argument('--nickname', help='Apelido único, sem espaços (usado nos comandos)')
-    parser.add_argument('--dir', dest='directory', help='Diretório do projeto')
+    parser = argparse.ArgumentParser(description="Cadastra novo projeto no DevTracker")
+    parser.add_argument("--name", help="Nome do projeto (pode conter espaços)")
+    parser.add_argument(
+        "--nickname", help="Apelido único, sem espaços (usado nos comandos)"
+    )
+    parser.add_argument("--dir", dest="directory", help="Diretório do projeto")
     args = parser.parse_args()
 
     interactive = not any([args.name, args.nickname, args.directory])
 
     if interactive:
-        print('⬡  DevTracker — novo projeto')
+        print("⬡  DevTracker — novo projeto")
         print()
 
         while True:
-            name = input('Nome do projeto: ').strip()
+            try:
+                name = input("Nome do projeto: ").strip()
+            except EOFError:
+                print("\n❌  Cancelado")
+                sys.exit(1)
             if not name:
-                print('❌  Nome é obrigatório')
+                print("❌  Nome é obrigatório")
                 continue
             if Project.objects.filter(name=name).exists():
                 print(f'⚠️   Projeto "{name}" já existe')
@@ -53,14 +61,17 @@ def main():
         while True:
             try:
                 import readline
-                readline.set_pre_input_hook(lambda: (readline.insert_text(nick_default), readline.redisplay()))
-                nickname = input('Apelido: ').strip()
+
+                readline.set_pre_input_hook(
+                    lambda: (readline.insert_text(nick_default), readline.redisplay())
+                )
+                nickname = input("Apelido: ").strip()
                 readline.set_pre_input_hook(None)
             except ImportError:
-                nickname = input(f'Apelido [{nick_default}]: ').strip()
+                nickname = input(f"Apelido [{nick_default}]: ").strip()
             nickname = nickname or nick_default
-            if not re.match(r'^[a-zA-Z0-9_-]+$', nickname):
-                print('❌  Apelido não pode conter espaços ou caracteres especiais')
+            if not re.match(r"^[a-zA-Z0-9_-]+$", nickname):
+                print("❌  Apelido não pode conter espaços ou caracteres especiais")
                 nick_default = nickname
                 continue
             if Project.objects.filter(nickname=nickname).exists():
@@ -73,29 +84,34 @@ def main():
         current = os.getcwd()
         try:
             import readline
-            readline.set_pre_input_hook(lambda: (readline.insert_text(current), readline.redisplay()))
-            entered = input('Diretório: ').strip()
+
+            readline.set_pre_input_hook(
+                lambda: (readline.insert_text(current), readline.redisplay())
+            )
+            entered = input("Diretório: ").strip()
             readline.set_pre_input_hook(None)
         except ImportError:
-            entered = input(f'Diretório [{current}]: ').strip()
+            entered = input(f"Diretório [{current}]: ").strip()
         directory = os.path.expanduser(entered) if entered else current
 
     else:
-        print('⬡  DevTracker — cadastrando projeto...')
+        print("⬡  DevTracker — cadastrando projeto...")
 
         name = args.name
         nickname = args.nickname or (default_nickname(args.name) if args.name else None)
-        directory = os.path.expanduser(args.directory) if args.directory else os.getcwd()
+        directory = (
+            os.path.expanduser(args.directory) if args.directory else os.getcwd()
+        )
 
         if not name:
-            print('❌  --name é obrigatório')
+            print("❌  --name é obrigatório")
             sys.exit(1)
         if not nickname:
-            print('❌  --nickname é obrigatório')
+            print("❌  --nickname é obrigatório")
             sys.exit(1)
 
-    if not re.match(r'^[a-zA-Z0-9_-]+$', nickname):
-        print('❌  Apelido não pode conter espaços ou caracteres especiais')
+    if not re.match(r"^[a-zA-Z0-9_-]+$", nickname):
+        print("❌  Apelido não pode conter espaços ou caracteres especiais")
         sys.exit(1)
 
     if Project.objects.filter(nickname=nickname).exists():
@@ -112,13 +128,13 @@ def main():
         path=directory,
     )
 
-    print(f'✅  Projeto criado: {project.name}')
-    print(f'   Apelido:   {project.nickname}')
-    print(f'   Diretório: {directory}')
+    print(f"✅  Projeto criado: {project.name}")
+    print(f"   Apelido:   {project.nickname}")
+    print(f"   Diretório: {directory}")
 
     if not open_pycharm(directory):
-        print(f'⚠️   PyCharm não encontrado. Abra manualmente: {directory}')
+        print(f"⚠️   PyCharm não encontrado. Abra manualmente: {directory}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

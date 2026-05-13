@@ -1,15 +1,33 @@
 #!/usr/bin/env python3
-import os
-import sys
 import argparse
+import os
+import subprocess
+import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _lib import django_setup, open_pycharm
+
 django_setup()
 
 from datetime import datetime, time
+
 from django.utils import timezone
-from tracker.models import Project, Session, Event
+
+from tracker.models import Event, Project, Session
+
+_BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_VENV_PYTHON = os.path.join(_BASE_DIR, ".venv", "bin", "python")
+_WATCHER_SCRIPT = os.path.join(_BASE_DIR, "tracker", "watcher.py")
+
+
+def _start_watcher(session_id, watch_path):
+    python = _VENV_PYTHON if os.path.exists(_VENV_PYTHON) else sys.executable
+    subprocess.Popen(
+        [python, _WATCHER_SCRIPT, str(session_id), watch_path],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
 
 
 def auto_close_time(session):
@@ -21,17 +39,17 @@ def auto_close_time(session):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Inicia sessão de trabalho')
-    parser.add_argument('nickname', help='Apelido do projeto')
+    parser = argparse.ArgumentParser(description="Inicia sessão de trabalho")
+    parser.add_argument("nickname", help="Apelido do projeto")
     args = parser.parse_args()
 
-    print('⬡  DevTracker — iniciando sessão...')
+    print("⬡  DevTracker — iniciando sessão...")
 
     try:
         project = Project.objects.get(nickname=args.nickname)
     except Project.DoesNotExist:
         print(f'❌  Projeto "{args.nickname}" não encontrado')
-        print(f'   Rode: new-project --nickname {args.nickname}')
+        print(f"   Rode: new-project --nickname {args.nickname}")
         sys.exit(1)
 
     auto_closed = []
@@ -39,27 +57,36 @@ def main():
         s.ended_at = auto_close_time(s)
         s.auto_closed = True
         s.save()
-        Event.objects.create(session=s, event_type='session_end', metadata={'auto_closed': True})
-        auto_closed.append(f'{s.project.name} ({s.ended_at.strftime("%d/%m às %H:%M")})')
+        Event.objects.create(
+            session=s, event_type="session_end", metadata={"auto_closed": True}
+        )
+        auto_closed.append(
+            f'{s.project.name} ({s.ended_at.strftime("%d/%m às %H:%M")})'
+        )
 
     if auto_closed:
         print(f'⚠️   Sessão anterior encerrada: {", ".join(auto_closed)}')
 
     session = Session.objects.create(project=project)
-    Event.objects.create(session=session, event_type='session_start')
+    Event.objects.create(session=session, event_type="session_start")
 
-    print(f'✅  Sessão iniciada: {project.name}')
+    print(f"✅  Sessão iniciada: {project.name}")
     print(f'   Diretório: {project.path or "(não definido)"}')
     print(f'   Use "end-session {project.nickname}" ao terminar.')
 
+    watch_path = (
+        project.path if (project.path and os.path.isdir(project.path)) else os.getcwd()
+    )
+    _start_watcher(session.pk, watch_path)
+
     if project.path and os.path.isdir(project.path):
         if not open_pycharm(project.path):
-            print('⚠️   PyCharm não encontrado.')
+            print("⚠️   PyCharm não encontrado.")
     elif not project.path:
-        print('⚠️   Diretório não configurado. Edite em: run-server → projetos')
+        print("⚠️   Diretório não configurado. Edite em: run-server → projetos")
     else:
-        print(f'⚠️   Diretório não encontrado: {project.path}')
+        print(f"⚠️   Diretório não encontrado: {project.path}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
