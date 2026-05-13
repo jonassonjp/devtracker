@@ -9,8 +9,8 @@ echo ""; echo "⬡  DevTracker — Instalação"; echo "━━━━━━━━
 echo "📦  Instalando dependências Python..."
 python3 -m venv "$VENV_DIR"
 "$VENV_DIR/bin/pip" install --quiet --upgrade pip
-"$VENV_DIR/bin/pip" install --quiet django
-echo "   ✓ Django instalado"
+"$VENV_DIR/bin/pip" install --quiet django anthropic
+echo "   ✓ Django e anthropic instalados"
 
 echo "🗄️   Configurando banco..."
 cd "$DEVTRACKER_DIR"

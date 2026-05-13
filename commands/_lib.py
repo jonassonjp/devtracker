@@ -36,6 +36,60 @@ def open_pycharm(directory):
     return False
 
 
+def generate_session_summary(project_path, started_at, ended_at):
+    api_key = os.environ.get('ANTHROPIC_API_KEY')
+    if not api_key:
+        print('ℹ️   ANTHROPIC_API_KEY não definida — resumo pulado.')
+        return None
+
+    if not project_path or not os.path.isdir(project_path):
+        print('ℹ️   Diretório do projeto não encontrado — resumo pulado.')
+        return None
+
+    try:
+        check = subprocess.run(
+            ['git', 'rev-parse', '--is-inside-work-tree'],
+            cwd=project_path, capture_output=True, text=True
+        )
+        if check.returncode != 0:
+            print('ℹ️   Diretório não é um repositório git — resumo pulado.')
+            return None
+    except (FileNotFoundError, OSError):
+        print('ℹ️   git não encontrado — resumo pulado.')
+        return None
+
+    after = started_at.strftime('%Y-%m-%dT%H:%M:%S')
+    before = ended_at.strftime('%Y-%m-%dT%H:%M:%S')
+    result = subprocess.run(
+        ['git', 'log', '--oneline', f'--after={after}', f'--before={before}'],
+        cwd=project_path, capture_output=True, text=True
+    )
+    commits = result.stdout.strip()
+    if not commits:
+        print('ℹ️   Nenhum commit no período — resumo pulado.')
+        return None
+
+    try:
+        import anthropic
+        client = anthropic.Anthropic(api_key=api_key)
+        response = client.messages.create(
+            model='claude-sonnet-4-20250514',
+            max_tokens=300,
+            messages=[{
+                'role': 'user',
+                'content': (
+                    'Resuma em 2-3 linhas em português o que foi feito nesta '
+                    'sessão de desenvolvimento com base nos commits abaixo. '
+                    'Seja objetivo e direto.\n\n' + commits
+                ),
+            }],
+        )
+        return response.content[0].text.strip()
+    except Exception as e:
+        print(f'⚠️   Erro ao gerar resumo: {e}')
+        return None
+
+
 def fmt_time(seconds):
     if not seconds:
         return '0m'

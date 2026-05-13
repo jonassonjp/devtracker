@@ -26,6 +26,7 @@
       <div><span class="tag tag-test">teste: <span data-secs="{{ s.testing_seconds }}">—</span></span></div>
       <div class="session-dur" data-secs="{{ s.useful_seconds }}">—</div>
     </div>
+    {% if s.notes %}<div class="session-notes-full">{{ s.notes }}</div>{% endif %}
     {% empty %}<div style="color:var(--text3);font-size:13px">Nenhuma sessão concluída.</div>
     {% endfor %}
   </div>

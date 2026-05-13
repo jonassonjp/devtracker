@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from datetime import timedelta
 from importlib.machinery import SourceFileLoader
 from io import StringIO
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 from django.test import TestCase
 from django.utils import timezone
@@ -385,3 +385,76 @@ class TestResetData(TestCase):
                 cmd_reset_data.main()
         self.assertFalse(Session.objects.filter(project__nickname='proj1').exists())
         self.assertEqual(Session.objects.count(), 1)   # sessão do proj2 permanece
+
+
+# ═══════════════════════════════════════════════════════════
+# generate_session_summary (_lib)
+# ═══════════════════════════════════════════════════════════
+
+from commands._lib import generate_session_summary  # noqa: E402
+
+
+class TestGenerateSessionSummary(TestCase):
+
+    def _make_dt(self, minutes_ago=60):
+        from django.utils import timezone
+        return timezone.now() - timedelta(minutes=minutes_ago)
+
+    def test_sem_api_key_retorna_none(self):
+        with patch.dict(os.environ, {}, clear=True):
+            os.environ.pop('ANTHROPIC_API_KEY', None)
+            with captured_output() as out:
+                result = generate_session_summary('/tmp', self._make_dt(60), self._make_dt(0))
+        self.assertIsNone(result)
+        self.assertIn('ANTHROPIC_API_KEY', out.getvalue())
+
+    def test_diretorio_inexistente_retorna_none(self):
+        with patch.dict(os.environ, {'ANTHROPIC_API_KEY': 'test-key'}):
+            with captured_output() as out:
+                result = generate_session_summary('/caminho/que/nao/existe', self._make_dt(60), self._make_dt(0))
+        self.assertIsNone(result)
+        self.assertIn('não encontrado', out.getvalue())
+
+    def test_diretorio_sem_git_retorna_none(self):
+        with patch.dict(os.environ, {'ANTHROPIC_API_KEY': 'test-key'}):
+            mock_result = MagicMock(returncode=128)
+            with patch('subprocess.run', return_value=mock_result):
+                with captured_output() as out:
+                    result = generate_session_summary('/tmp', self._make_dt(60), self._make_dt(0))
+        self.assertIsNone(result)
+        self.assertIn('não é um repositório git', out.getvalue())
+
+    def test_sem_commits_no_periodo_retorna_none(self):
+        with patch.dict(os.environ, {'ANTHROPIC_API_KEY': 'test-key'}):
+            git_ok = MagicMock(returncode=0)
+            git_log_empty = MagicMock(returncode=0, stdout='')
+            with patch('subprocess.run', side_effect=[git_ok, git_log_empty]):
+                with captured_output() as out:
+                    result = generate_session_summary('/tmp', self._make_dt(60), self._make_dt(0))
+        self.assertIsNone(result)
+        self.assertIn('Nenhum commit', out.getvalue())
+
+    def test_com_commits_chama_api_e_retorna_resumo(self):
+        commits = 'abc1234 feat: adiciona login\ndef5678 fix: corrige bug'
+        with patch.dict(os.environ, {'ANTHROPIC_API_KEY': 'test-key'}):
+            git_ok = MagicMock(returncode=0)
+            git_log = MagicMock(returncode=0, stdout=commits)
+            mock_response = MagicMock()
+            mock_response.content = [MagicMock(text='Resumo gerado pela IA.')]
+            mock_client = MagicMock()
+            mock_client.messages.create.return_value = mock_response
+            with patch('subprocess.run', side_effect=[git_ok, git_log]):
+                with patch('anthropic.Anthropic', return_value=mock_client):
+                    result = generate_session_summary('/tmp', self._make_dt(60), self._make_dt(0))
+        self.assertEqual(result, 'Resumo gerado pela IA.')
+
+    def test_no_summarize_flag_pula_sem_perguntar(self):
+        project = make_project(nickname='myapp', path='/tmp')
+        make_session(project)
+        with patch('sys.argv', ['end-session', '--no-summarize']):
+            with patch('builtins.input', side_effect=Exception('não deveria perguntar')):
+                with captured_output():
+                    cmd_end_session.main()
+        session = Session.objects.get(project__nickname='myapp')
+        self.assertIsNotNone(session.ended_at)
+        self.assertEqual(session.notes, '')

@@ -4,7 +4,7 @@ import sys
 import argparse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _lib import django_setup, fmt_time
+from _lib import django_setup, fmt_time, generate_session_summary
 django_setup()
 
 from django.utils import timezone
@@ -15,6 +15,9 @@ def main():
     parser = argparse.ArgumentParser(description='Encerra sessão de trabalho')
     parser.add_argument('nickname', nargs='?', help='Apelido do projeto (opcional)')
     parser.add_argument('--notes', default='', help='Notas sobre a sessão')
+    summ = parser.add_mutually_exclusive_group()
+    summ.add_argument('--summarize', action='store_true', help='Gerar resumo via git+IA (força sim)')
+    summ.add_argument('--no-summarize', dest='no_summarize', action='store_true', help='Pular resumo sem perguntar')
     args = parser.parse_args()
 
     print('⬡  DevTracker — encerrando sessão...')
@@ -46,6 +49,24 @@ def main():
     print(f'🕐  Horário:     {start} → {end}  ({total})')
     print(f'📊  Total acum.: {total_proj}')
     print('━' * 38)
+
+    if not args.no_summarize and not args.notes:
+        if args.summarize:
+            do_summary = True
+        else:
+            try:
+                resp = input('Gerar resumo da sessão via git? [S/n] ').strip().lower()
+                do_summary = resp in ('', 's', 'sim', 'y', 'yes')
+            except EOFError:
+                do_summary = False
+        if do_summary:
+            summary = generate_session_summary(
+                session.project.path, session.started_at, session.ended_at
+            )
+            if summary:
+                session.notes = summary
+                session.save(update_fields=['notes'])
+                print('📝  Resumo salvo.')
 
 
 if __name__ == '__main__':

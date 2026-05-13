@@ -69,7 +69,12 @@ def handle_project(project, active_session):
             except EOFError:
                 resp = 's'
             if resp in ('', 's', 'sim', 'y', 'yes'):
-                os.execvp('end-session', ['end-session', project.nickname or project.slug])
+                try:
+                    summ_resp = input('Gerar resumo da sessão via git? [S/n] ').strip().lower()
+                except EOFError:
+                    summ_resp = 'n'
+                summ_flag = '--summarize' if summ_resp in ('', 's', 'sim', 'y', 'yes') else '--no-summarize'
+                os.execvp('end-session', ['end-session', project.nickname or project.slug, summ_flag])
             else:
                 print('ℹ️   Nenhuma alteração.')
         else:

@@ -31,6 +31,7 @@
         <div class="session-date">{{ s.started_at|date:"d/m H:i" }}</div>
         <div class="session-dur" data-secs="{{ s.useful_seconds }}">—</div>
       </div>
+      {% if s.notes %}<div class="session-notes">{{ s.notes|truncatechars:100 }}</div>{% endif %}
       {% empty %}<div style="color:var(--text3);font-size:13px">Nenhuma sessão ainda.</div>
       {% endfor %}
     </div>
