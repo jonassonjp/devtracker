@@ -1,6 +1,6 @@
 import json
 import re
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -23,17 +23,18 @@ def _unique_slug(name, exclude_id=None):
 
 def dashboard(request):
     projects = Project.objects.all()
-    today = timezone.now().date()
+    today = timezone.localdate()
     heatmap_data = {}
     for i in range(365):
         heatmap_data[str(today - timedelta(days=i))] = 0
     sessions = Session.objects.filter(ended_at__isnull=False)
     for s in sessions:
-        d = str(s.started_at.date())
+        d = str(timezone.localtime(s.started_at).date())
         if d in heatmap_data:
             heatmap_data[d] += s.useful_seconds
-    today_sessions = sessions.filter(started_at__date=today)
-    week_sessions = sessions.filter(started_at__date__gte=today - timedelta(days=7))
+    day_start = timezone.make_aware(datetime.combine(today, time.min))
+    today_sessions = sessions.filter(started_at__gte=day_start, started_at__lt=day_start + timedelta(days=1))
+    week_sessions = sessions.filter(started_at__gte=day_start - timedelta(days=6))
     return render(
         request,
         "tracker/dashboard.html",
@@ -64,12 +65,12 @@ def dashboard(request):
 def project_detail(request, slug):
     project = get_object_or_404(Project, slug=slug)
     sessions = project.sessions.filter(ended_at__isnull=False).order_by("-started_at")
-    today = timezone.now().date()
+    today = timezone.localdate()
     heatmap_data = {}
     for i in range(365):
         heatmap_data[str(today - timedelta(days=i))] = 0
     for s in sessions:
-        d = str(s.started_at.date())
+        d = str(timezone.localtime(s.started_at).date())
         if d in heatmap_data:
             heatmap_data[d] += s.useful_seconds
     return render(

@@ -31,8 +31,8 @@ def _start_watcher(session_id, watch_path):
 
 
 def auto_close_time(session):
-    today = timezone.now().date()
-    started = session.started_at.date()
+    today = timezone.localdate()
+    started = timezone.localtime(session.started_at).date()
     if started < today:
         return timezone.make_aware(datetime.combine(started, time(23, 59, 0)))
     return timezone.now()
@@ -61,7 +61,7 @@ def main():
             session=s, event_type="session_end", metadata={"auto_closed": True}
         )
         auto_closed.append(
-            f'{s.project.name} ({s.ended_at.strftime("%d/%m às %H:%M")})'
+            f'{s.project.name} ({timezone.localtime(s.ended_at).strftime("%d/%m às %H:%M")})'
         )
 
     if auto_closed:

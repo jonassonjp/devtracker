@@ -6,6 +6,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _lib import django_setup, fmt_time
 django_setup()
 
+from django.utils import timezone
 from tracker.models import Project, Session
 
 
@@ -61,7 +62,7 @@ def handle_project(project, active_session):
 
     if action == '1':
         if has_active:
-            start = active_session.started_at.strftime('%H:%M')
+            start = timezone.localtime(active_session.started_at).strftime('%H:%M')
             elapsed = fmt_time(active_session.total_seconds)
             print(f'▶  Sessão ativa desde {start} ({elapsed} acumulados)')
             try:

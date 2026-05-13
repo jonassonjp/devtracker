@@ -67,8 +67,9 @@ def generate_session_summary(project_path, started_at, ended_at):
         print("ℹ️   git não encontrado — resumo pulado.")
         return None
 
-    after = started_at.strftime("%Y-%m-%dT%H:%M:%S")
-    before = ended_at.strftime("%Y-%m-%dT%H:%M:%S")
+    from django.utils import timezone as tz
+    after = tz.localtime(started_at).strftime("%Y-%m-%dT%H:%M:%S")
+    before = tz.localtime(ended_at).strftime("%Y-%m-%dT%H:%M:%S")
     result = subprocess.run(
         ["git", "log", "--oneline", f"--after={after}", f"--before={before}"],
         cwd=project_path,

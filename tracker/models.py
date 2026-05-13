@@ -43,7 +43,7 @@ class Session(models.Model):
         ordering = ["-started_at"]
 
     def __str__(self):
-        return f"{self.project.name} — {self.started_at.strftime('%Y-%m-%d %H:%M')}"
+        return f"{self.project.name} — {timezone.localtime(self.started_at).strftime('%Y-%m-%d %H:%M')}"
 
     @property
     def is_active(self):
@@ -113,4 +113,4 @@ class Event(models.Model):
         ordering = ["timestamp"]
 
     def __str__(self):
-        return f"{self.event_type} @ {self.timestamp.strftime('%H:%M:%S')}"
+        return f"{self.event_type} @ {timezone.localtime(self.timestamp).strftime('%H:%M:%S')}"

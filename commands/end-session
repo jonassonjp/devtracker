@@ -67,8 +67,8 @@ def main():
     session.save()
     Event.objects.create(session=session, event_type="session_end")
 
-    start = session.started_at.strftime("%H:%M")
-    end = session.ended_at.strftime("%H:%M")
+    start = timezone.localtime(session.started_at).strftime("%H:%M")
+    end = timezone.localtime(session.ended_at).strftime("%H:%M")
     total = fmt_time(session.total_seconds)
     total_proj = fmt_time(session.project.total_seconds)
 
