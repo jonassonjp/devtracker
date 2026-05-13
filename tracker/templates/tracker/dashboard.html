@@ -20,9 +20,14 @@
     <div style="width:11px;height:11px;border-radius:2px;background:#00d4aa"></div>mais
   </div>
 </div>
-<div class="grid-2">
-  <div class="section"><div class="section-title">Projetos por tempo</div><div class="bar-list" id="proj-bars"></div></div>
-  <div class="section"><div class="section-title">Sessões recentes</div>
+<div class="section" id="pie-section">
+  <div class="section-title">Tempo por projeto</div>
+  <div class="pie-layout">
+    <div class="pie-wrap"><canvas id="pie-chart" width="220" height="220"></canvas></div>
+    <div class="pie-legend" id="pie-legend"><div style="color:var(--text3);font-size:13px">Nenhum projeto com tempo ainda.</div></div>
+  </div>
+</div>
+<div class="section"><div class="section-title">Sessões recentes</div>
     <div class="session-list">
       {% for s in recent_sessions %}
       <div class="session-item">
@@ -35,7 +40,6 @@
       {% empty %}<div style="color:var(--text3);font-size:13px">Nenhuma sessão ainda.</div>
       {% endfor %}
     </div>
-  </div>
 </div>
 {% endblock %}
 {% block scripts %}<script>
@@ -49,9 +53,53 @@ const sorted=Object.entries(heatData).sort((a,b)=>a[0]<b[0]?-1:1);
 let week=document.createElement('div');week.className='heatmap-week';
 sorted.forEach(([d,secs],i)=>{const day=document.createElement('div');day.className='heatmap-day';const level=secs===0?0:secs<3600?1:secs<7200?2:secs<14400?3:4;if(level)day.setAttribute('data-level',level);day.title=d+': '+fmt(secs);week.appendChild(day);if((i+1)%7===0){hm.appendChild(week);week=document.createElement('div');week.className='heatmap-week';}});
 if(week.children.length)hm.appendChild(week);
-const pb=document.getElementById('proj-bars');
-if(!projData.length){pb.innerHTML='<div style="color:var(--text3);font-size:13px">Nenhum projeto com tempo ainda.</div>';}
-const maxP=projData[0]?.seconds||1;
-projData.forEach(p=>{pb.innerHTML+=`<div class="bar-item"><div class="bar-name">${p.name}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.round(p.seconds/maxP*100)}%;background:${p.color}"></div></div><div class="bar-time">${fmt(p.seconds)}</div></div>`;});
+const pd=[...projData].sort((a,b)=>b.seconds-a.seconds);
+const pieCanvas=document.getElementById('pie-chart');
+const legend=document.getElementById('pie-legend');
+if(pd.length){
+  const total=pd.reduce((s,p)=>s+p.seconds,0);
+  const ctx=pieCanvas.getContext('2d');
+  const cx=110,cy=110,r=100,ri=58;
+  let angle=-Math.PI/2;
+  pd.forEach(p=>{
+    const slice=(p.seconds/total)*2*Math.PI;
+    ctx.beginPath();
+    if(pd.length===1){ctx.arc(cx,cy,r,0,2*Math.PI);}
+    else{ctx.moveTo(cx,cy);ctx.arc(cx,cy,r,angle,angle+slice);ctx.closePath();}
+    ctx.fillStyle=p.color;ctx.fill();
+    if(pd.length>1){ctx.strokeStyle='#0d0f14';ctx.lineWidth=3;ctx.stroke();}
+    angle+=slice;
+  });
+  ctx.beginPath();ctx.arc(cx,cy,ri,0,2*Math.PI);ctx.fillStyle='#13161e';ctx.fill();
+  const maxSec=pd[0].seconds||1;
+  legend.innerHTML='';
+  pd.forEach(p=>{
+    const pct=Math.round(p.seconds/total*100);
+    const barW=Math.round(p.seconds/maxSec*100);
+    legend.innerHTML+=`<div class="pie-leg-item">
+      <div class="pie-leg-dot" style="background:${p.color}"></div>
+      <div class="pie-leg-name">${p.name}</div>
+      <div class="pie-leg-bar"><div class="pie-leg-fill" style="width:${barW}%;background:${p.color}"></div></div>
+      <div class="pie-leg-time">${fmt(p.seconds)}</div>
+      <div class="pie-leg-pct">${pct}%</div>
+    </div>`;
+  });
+}else{
+  pieCanvas.style.display='none';
+}
 document.querySelectorAll('[data-secs]').forEach(el=>{el.textContent=fmt(parseInt(el.dataset.secs));});
-</script>{% endblock %}
+</script>
+<style>
+.pie-layout{display:flex;gap:40px;align-items:center}
+.pie-wrap{flex-shrink:0}
+.pie-legend{flex:1;display:flex;flex-direction:column;gap:10px;min-width:0}
+.pie-leg-item{display:flex;align-items:center;gap:12px}
+.pie-leg-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.pie-leg-name{font-size:13px;font-weight:500;min-width:130px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pie-leg-bar{flex:1;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden;min-width:60px}
+.pie-leg-fill{height:100%;border-radius:3px;transition:width .8s cubic-bezier(.4,0,.2,1)}
+.pie-leg-time{font-size:12px;font-family:var(--mono);color:var(--text2);min-width:64px;text-align:right;flex-shrink:0}
+.pie-leg-pct{font-size:11px;font-family:var(--mono);color:var(--text3);min-width:36px;text-align:right;flex-shrink:0}
+@media(max-width:700px){.pie-layout{flex-direction:column}.pie-wrap{align-self:center}}
+</style>
+{% endblock %}

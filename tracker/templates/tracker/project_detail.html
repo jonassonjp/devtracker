@@ -26,7 +26,15 @@
       <div><span class="tag tag-test">teste: <span data-secs="{{ s.testing_seconds }}">—</span></span></div>
       <div class="session-dur" data-secs="{{ s.useful_seconds }}">—</div>
     </div>
-    {% if s.notes %}<div class="session-notes-full">{{ s.notes }}</div>{% endif %}
+    {% if s.notes %}
+    <div class="session-notes-full">
+      <span class="notes-preview">{{ s.notes|truncatechars:100 }}</span>
+      {% if s.notes|length > 100 %}
+      <span class="notes-rest" style="display:none">{{ s.notes }}</span>
+      <a href="#" class="notes-toggle">ver mais</a>
+      {% endif %}
+    </div>
+    {% endif %}
     {% empty %}<div style="color:var(--text3);font-size:13px">Nenhuma sessão concluída.</div>
     {% endfor %}
   </div>
@@ -42,4 +50,21 @@ const heatData={{heatmap_data|safe}};const hm=document.getElementById('heatmap')
 const sorted=Object.entries(heatData).sort((a,b)=>a[0]<b[0]?-1:1);let week=document.createElement('div');week.className='heatmap-week';
 sorted.forEach(([d,secs],i)=>{const day=document.createElement('div');day.className='heatmap-day';const level=secs===0?0:secs<3600?1:secs<7200?2:secs<14400?3:4;if(level)day.setAttribute('data-level',level);day.title=d+': '+fmt(secs);week.appendChild(day);if((i+1)%7===0){hm.appendChild(week);week=document.createElement('div');week.className='heatmap-week';}});
 if(week.children.length)hm.appendChild(week);
-</script>{% endblock %}
+document.querySelectorAll('.notes-toggle').forEach(a=>{
+  a.addEventListener('click',e=>{
+    e.preventDefault();
+    const box=a.closest('.session-notes-full');
+    const preview=box.querySelector('.notes-preview');
+    const rest=box.querySelector('.notes-rest');
+    const expanded=rest.style.display!=='none';
+    preview.style.display=expanded?'':'none';
+    rest.style.display=expanded?'none':'';
+    a.textContent=expanded?'ver mais':'ver menos';
+  });
+});
+</script>
+<style>
+.notes-toggle{font-size:12px;color:var(--accent);margin-left:4px;white-space:nowrap}
+.notes-toggle:hover{text-decoration:underline}
+</style>
+{% endblock %}
