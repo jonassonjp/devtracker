@@ -40,6 +40,14 @@ WRAPPER
 chmod +x "$BIN_DIR/run-server"
 echo "   ✓ run-server"
 
+# claude-dev — script bash
+cat > "$BIN_DIR/claude-dev" << WRAPPER
+#!/usr/bin/env bash
+exec "$DEVTRACKER_DIR/commands/claude-dev" "\$@"
+WRAPPER
+chmod +x "$BIN_DIR/claude-dev"
+echo "   ✓ claude-dev"
+
 [[ ":$PATH:" != *":$BIN_DIR:"* ]] && echo -e "\n⚠️   Adicione ao ~/.bashrc:\n   export PATH=\"\$HOME/.local/bin:\$PATH\"\n   Depois: source ~/.bashrc"
 
 echo ""

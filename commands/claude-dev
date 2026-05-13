@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -e
+
+NICKNAME="$1"
+
+if [[ -z "$NICKNAME" ]]; then
+  echo "❌  Uso: claude-dev <nickname>" >&2
+  exit 1
+fi
+
+start-session "$NICKNAME"
+
+trap "end-session $NICKNAME" EXIT
+
+claude
