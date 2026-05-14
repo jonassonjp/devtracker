@@ -13,4 +13,5 @@ urlpatterns = [
     path("api/stop-server/", views.api_stop_server, name="api_stop_server"),
     path("api/end-session/", views.api_end_session, name="api_end_session"),
     path("api/status/", views.api_status, name="api_status"),
+    path("api/day/", views.api_day, name="api_day"),
 ]

@@ -58,7 +58,9 @@ class Session(models.Model):
     @property
     def coding_seconds(self):
         total = 0
-        events = list(self.events.order_by("timestamp"))
+        events = list(
+            self.events.exclude(event_type="file_change").order_by("timestamp")
+        )
         in_test = False
         last_time = self.started_at
         for e in events:
@@ -79,7 +81,9 @@ class Session(models.Model):
     @property
     def testing_seconds(self):
         total = 0
-        events = list(self.events.order_by("timestamp"))
+        events = list(
+            self.events.exclude(event_type="file_change").order_by("timestamp")
+        )
         last_time = None
         for e in events:
             if e.event_type == "server_start":

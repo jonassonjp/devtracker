@@ -20,6 +20,13 @@
     <div style="width:11px;height:11px;border-radius:2px;background:#00d4aa"></div>mais
   </div>
 </div>
+<div class="section" id="day-detail" style="display:none">
+  <div class="day-detail-header">
+    <div class="section-title" id="day-detail-title">—</div>
+    <button class="day-close-btn" id="day-close-btn" title="Fechar">✕</button>
+  </div>
+  <div id="day-detail-body"></div>
+</div>
 <div class="section" id="pie-section">
   <div class="section-title">Tempo por projeto</div>
   <div class="pie-layout">
@@ -51,7 +58,52 @@ document.getElementById('total-val').textContent=fmt({{all_seconds}});
 const hm=document.getElementById('heatmap');
 const sorted=Object.entries(heatData).sort((a,b)=>a[0]<b[0]?-1:1);
 let week=document.createElement('div');week.className='heatmap-week';
-sorted.forEach(([d,secs],i)=>{const day=document.createElement('div');day.className='heatmap-day';const level=secs===0?0:secs<3600?1:secs<7200?2:secs<14400?3:4;if(level)day.setAttribute('data-level',level);day.title=d+': '+fmt(secs);week.appendChild(day);if((i+1)%7===0){hm.appendChild(week);week=document.createElement('div');week.className='heatmap-week';}});
+let activeDay=null;
+function openDay(date){
+  if(activeDay)activeDay.classList.remove('heatmap-day-active');
+  activeDay=document.querySelector(`.heatmap-day[data-date="${date}"]`);
+  if(activeDay)activeDay.classList.add('heatmap-day-active');
+  const panel=document.getElementById('day-detail');
+  const title=document.getElementById('day-detail-title');
+  const body=document.getElementById('day-detail-body');
+  const [y,m,d]=date.split('-');
+  title.textContent=`${d}/${m}/${y}`;
+  body.innerHTML='<div style="color:var(--text3);font-size:13px">Carregando…</div>';
+  panel.style.display='';
+  panel.scrollIntoView({behavior:'smooth',block:'nearest'});
+  fetch(`/api/day/?date=${date}`)
+    .then(r=>r.json())
+    .then(data=>{
+      if(!data.sessions.length){body.innerHTML='<div style="color:var(--text3);font-size:13px">Nenhuma sessão neste dia.</div>';return;}
+      title.textContent=`${d}/${m}/${y} — ${fmt(data.total_useful)}`;
+      let html='<div class="day-sessions">';
+      data.sessions.forEach(s=>{
+        const hasNotes=s.notes&&s.notes.trim();
+        html+=`<div class="day-session-item">
+          <div class="day-session-dot" style="background:${s.project_color}"></div>
+          <div class="day-session-info">
+            <div class="day-session-top">
+              <a class="day-session-project" href="/projects/${s.project_slug}/">${s.project}</a>
+              <span class="day-session-time">${s.started_at} – ${s.ended_at}</span>
+              <span class="day-session-dur">${fmt(s.useful_seconds)}</span>
+            </div>
+            <div class="day-session-breakdown">
+              ${s.coding_seconds?`<span class="tag-code">código ${fmt(s.coding_seconds)}</span>`:''}
+              ${s.testing_seconds?`<span class="tag-test">teste ${fmt(s.testing_seconds)}</span>`:''}
+            </div>
+            ${hasNotes?`<div class="day-session-notes">${s.notes}</div>`:''}
+          </div>
+        </div>`;
+      });
+      html+='</div>';
+      body.innerHTML=html;
+    });
+}
+document.getElementById('day-close-btn').addEventListener('click',()=>{
+  document.getElementById('day-detail').style.display='none';
+  if(activeDay){activeDay.classList.remove('heatmap-day-active');activeDay=null;}
+});
+sorted.forEach(([d,secs],i)=>{const day=document.createElement('div');day.className='heatmap-day';day.setAttribute('data-date',d);const level=secs===0?0:secs<3600?1:secs<7200?2:secs<14400?3:4;if(level)day.setAttribute('data-level',level);day.title=d+': '+fmt(secs);if(secs>0)day.addEventListener('click',()=>openDay(d));week.appendChild(day);if((i+1)%7===0){hm.appendChild(week);week=document.createElement('div');week.className='heatmap-week';}});
 if(week.children.length)hm.appendChild(week);
 const pd=[...projData].sort((a,b)=>b.seconds-a.seconds);
 const pieCanvas=document.getElementById('pie-chart');
@@ -61,22 +113,40 @@ if(pd.length){
   const ctx=pieCanvas.getContext('2d');
   const cx=110,cy=110,r=100,ri=58;
   let angle=-Math.PI/2;
+  const slices=[];
   pd.forEach(p=>{
     const slice=(p.seconds/total)*2*Math.PI;
+    const start=angle,end=angle+slice;
     ctx.beginPath();
     if(pd.length===1){ctx.arc(cx,cy,r,0,2*Math.PI);}
-    else{ctx.moveTo(cx,cy);ctx.arc(cx,cy,r,angle,angle+slice);ctx.closePath();}
+    else{ctx.moveTo(cx,cy);ctx.arc(cx,cy,r,start,end);ctx.closePath();}
     ctx.fillStyle=p.color;ctx.fill();
     if(pd.length>1){ctx.strokeStyle='#0d0f14';ctx.lineWidth=3;ctx.stroke();}
-    angle+=slice;
+    slices.push({start,end,slug:p.slug});
+    angle=end;
   });
   ctx.beginPath();ctx.arc(cx,cy,ri,0,2*Math.PI);ctx.fillStyle='#13161e';ctx.fill();
+  pieCanvas.style.cursor='pointer';
+  pieCanvas.addEventListener('click',e=>{
+    const rect=pieCanvas.getBoundingClientRect();
+    const mx=e.clientX-rect.left,my=e.clientY-rect.top;
+    const dx=mx-cx,dy=my-cy,dist=Math.sqrt(dx*dx+dy*dy);
+    if(dist<ri||dist>r)return;
+    let a=Math.atan2(dy,dx);
+    const base=-Math.PI/2;
+    const norm=(a-base+4*Math.PI)%(2*Math.PI);
+    for(const s of slices){
+      const sn=(s.start-base+4*Math.PI)%(2*Math.PI);
+      const en=(s.end-base+4*Math.PI)%(2*Math.PI);
+      if(norm>=sn&&norm<en){location.href=`/projects/${s.slug}/`;return;}
+    }
+  });
   const maxSec=pd[0].seconds||1;
   legend.innerHTML='';
   pd.forEach(p=>{
     const pct=Math.round(p.seconds/total*100);
     const barW=Math.round(p.seconds/maxSec*100);
-    legend.innerHTML+=`<div class="pie-leg-item">
+    legend.innerHTML+=`<div class="pie-leg-item" style="cursor:pointer" onclick="location.href='/projects/${p.slug}/'">
       <div class="pie-leg-dot" style="background:${p.color}"></div>
       <div class="pie-leg-name">${p.name}</div>
       <div class="pie-leg-bar"><div class="pie-leg-fill" style="width:${barW}%;background:${p.color}"></div></div>
@@ -101,5 +171,25 @@ document.querySelectorAll('[data-secs]').forEach(el=>{el.textContent=fmt(parseIn
 .pie-leg-time{font-size:12px;font-family:var(--mono);color:var(--text2);min-width:64px;text-align:right;flex-shrink:0}
 .pie-leg-pct{font-size:11px;font-family:var(--mono);color:var(--text3);min-width:36px;text-align:right;flex-shrink:0}
 @media(max-width:700px){.pie-layout{flex-direction:column}.pie-wrap{align-self:center}}
+.heatmap-day{cursor:default}
+.heatmap-day[data-level]{cursor:pointer}
+.heatmap-day-active{outline:2px solid var(--accent);outline-offset:1px;border-radius:3px}
+.day-detail-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.day-close-btn{background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:2px 6px;border-radius:4px;line-height:1}
+.day-close-btn:hover{color:var(--text1);background:var(--bg3)}
+.day-sessions{display:flex;flex-direction:column;gap:12px}
+.day-session-item{display:flex;gap:12px;align-items:flex-start}
+.day-session-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:4px}
+.day-session-info{flex:1;min-width:0}
+.day-session-top{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.day-session-project{font-size:14px;font-weight:600;color:var(--text1);text-decoration:none}
+.day-session-project:hover{text-decoration:underline}
+.day-session-time{font-size:12px;font-family:var(--mono);color:var(--text3)}
+.day-session-dur{font-size:13px;font-family:var(--mono);color:var(--accent);margin-left:auto}
+.day-session-breakdown{display:flex;gap:8px;margin-top:4px;flex-wrap:wrap}
+.tag-code,.tag-test{font-size:11px;font-family:var(--mono);padding:2px 7px;border-radius:10px}
+.tag-code{background:rgba(0,212,170,.12);color:#00d4aa}
+.tag-test{background:rgba(255,180,50,.12);color:#ffb432}
+.day-session-notes{margin-top:6px;font-size:12px;color:var(--text2);white-space:pre-wrap;line-height:1.5;border-left:2px solid var(--bg3);padding-left:10px}
 </style>
 {% endblock %}

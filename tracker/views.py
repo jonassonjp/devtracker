@@ -49,6 +49,7 @@ def dashboard(request):
                 [
                     {
                         "name": p.name,
+                        "slug": p.slug,
                         "seconds": p.total_seconds,
                         "color": p.color,
                         "sessions": p.total_sessions,
@@ -272,6 +273,39 @@ def api_end_session(request):
             "useful_seconds": session.useful_seconds,
         }
     )
+
+
+def api_day(request):
+    date_str = request.GET.get("date", "")
+    try:
+        date = datetime.strptime(date_str, "%Y-%m-%d").date()
+    except ValueError:
+        return JsonResponse({"error": "date param required (YYYY-MM-DD)"}, status=400)
+    day_start = timezone.make_aware(datetime.combine(date, time.min))
+    day_end = day_start + timedelta(days=1)
+    sessions = (
+        Session.objects.filter(ended_at__isnull=False, started_at__gte=day_start, started_at__lt=day_end)
+        .select_related("project")
+        .order_by("started_at")
+    )
+    data = []
+    for s in sessions:
+        local_start = timezone.localtime(s.started_at)
+        local_end = timezone.localtime(s.ended_at)
+        data.append({
+            "id": s.id,
+            "project": s.project.name,
+            "project_slug": s.project.slug,
+            "project_color": s.project.color,
+            "started_at": local_start.strftime("%H:%M"),
+            "ended_at": local_end.strftime("%H:%M"),
+            "coding_seconds": s.coding_seconds,
+            "testing_seconds": s.testing_seconds,
+            "useful_seconds": s.useful_seconds,
+            "notes": s.notes,
+        })
+    total_useful = sum(s.useful_seconds for s in sessions)
+    return JsonResponse({"date": date_str, "total_useful": total_useful, "sessions": data})
 
 
 def api_status(request):
